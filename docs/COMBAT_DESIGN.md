@@ -10,6 +10,19 @@ Bloodcorp's arena battles should grow into a compact tactical combat system insp
 - **Character identity:** Every gladiator should feel different through class-like skills, cyberware, injuries, traits, and equipment.
 - **Readable spectacle:** Turns should remain fast, clear, and violent, with sponsor objectives and crowd appeal shaping what the player values.
 
+## Current Battle Foundation
+
+The first tactical movement slice is implemented in `scripts/Battle.gd`:
+
+- Arena grid is 7x5, with bounded left/right deployment so units no longer spawn outside the grid.
+- Player turns show clickable highlighted movement tiles for reachable empty spaces.
+- Units reserve `move_range`, `attack_range`, `has_moved`, `has_main_action`, and `has_bonus_action` fields.
+- Movement is once per turn; basic attacks consume the main action and require melee range.
+- Enemy AI moves toward the nearest living player and attacks if it reaches melee range.
+- Sponsor objectives, kill tracking, target mark highlighting, and result rewards/penalties remain tied into battle flow.
+
+This is a foundation, not the finished tactical combat system. Bonus actions, skills, terrain, and richer positioning rules still need dedicated slices.
+
 ## Turn Structure
 
 Each active gladiator should eventually support:
@@ -19,7 +32,7 @@ Each active gladiator should eventually support:
 - **Bonus action:** Use a smaller skill, quick item, shove, stance swap, cyberware trigger, or weapon-specific trick.
 - **End turn:** Commit the chosen actions and move initiative forward.
 
-The current speed-sorted initiative system can remain as the foundation. The first implementation slice should add player-readable choices without rewriting the whole battle loop.
+The current speed-sorted initiative system can remain as the foundation. The implemented movement slice adds player-readable choices without rewriting the whole battle loop.
 
 ## Skills
 
@@ -50,13 +63,12 @@ Equipment should do more than change stats over time. Weapons, armor, and cyberw
 
 Management should show what a gladiator can do before deployment. Battle should surface granted skills clearly when that gladiator is active.
 
-## First Implementation Target
+## Next Implementation Targets
 
-A safe first slice would be:
+Good next slices:
 
-1. Add a simple movement range to the active unit.
-2. Let the player choose between movement and one basic attack.
-3. Reserve data fields for main action, bonus action, and future skills.
-4. Keep enemy AI simple: move toward the closest target, then attack if in range.
-
-This preserves the existing loop while opening the door for tactical depth.
+1. Add a minimal action bar that explicitly shows movement, main action, bonus action, and end turn state.
+2. Add terrain or obstacle tiles that block movement and create stronger positioning choices.
+3. Add one character-specific active skill using the existing main/bonus action fields.
+4. Add basic range variation through weapons or skills so melee adjacency is not the only target rule.
+5. Add crowd/style scoring hooks that sponsors can reference beyond kills, rounds, and marked targets.

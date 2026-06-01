@@ -84,7 +84,6 @@ func _build_ui() -> void:
 	cards_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	cards_container.add_theme_constant_override("separation", 24)
 	cards_container.alignment = BoxContainer.ALIGNMENT_CENTER
-	root.add_child(cards_container)
 
 	# Margin around cards
 	var margin := MarginContainer.new()

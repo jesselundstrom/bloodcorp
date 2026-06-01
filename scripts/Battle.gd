@@ -8,9 +8,12 @@ const ENEMY_NAMES := [
 
 # Sponsor data is read from GameState.active_sponsor at _ready.
 
-const GRID_COLS := 5
-const GRID_ROWS := 4
+const GRID_COLS := 7
+const GRID_ROWS := 5
 const UNIT_SIZE := Vector2(56, 56)
+const MOVE_TILE_SIZE := Vector2(42, 28)
+const DEFAULT_MOVE_RANGE := 2
+const DEFAULT_ATTACK_RANGE := 1
 
 # Sprite sheet: 1536x1024, 3 columns x 2 rows of 512x512 frames
 const SPRITE_SHEET_PATH := "res://assets/sprites/gladiators.png"
@@ -26,6 +29,8 @@ const COLOR_ACTIVE_BORDER := Color(0.0, 1.0, 0.8, 0.85)
 const COLOR_HOVER_BORDER := Color(1, 1, 1, 0.45)
 const COLOR_ATTACK_READY := Color(1.0, 0.133, 0.267, 1.0)
 const COLOR_ATTACK_DISABLED := Color(0.22, 0.22, 0.25, 1.0)
+const COLOR_MOVE_TILE := Color(0.0, 1.0, 0.8, 0.28)
+const COLOR_MOVE_TILE_HOVER := Color(0.0, 1.0, 0.8, 0.52)
 const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
 
 var _units: Array = []
@@ -35,6 +40,7 @@ var _round: int = 1
 var _battle_over: bool = false
 var _selected_target = null
 var _hovered_target = null
+var _move_tiles: Array = []
 var _sprite_sheet: Texture2D = null
 var _combat_log: RichTextLabel = null
 var _kills: int = 0
@@ -252,13 +258,14 @@ func _build_units() -> void:
 		var g: Dictionary = GameState.roster[i].duplicate()
 		g["team"] = "player"
 		g["is_mark"] = false
-		g["grid_pos"] = Vector2i(i % 2, i)
+		g["grid_pos"] = Vector2i(i % 2, int(i / 2))
 		g["hp_max"] = 20 + g["armor"] * 2
 		g["hp_current"] = g["hp_max"]
 		g["sprite_col"] = i % (SPRITE_COLS * SPRITE_ROWS)
 		g["rect_node"] = null
 		g["border_nodes"] = []
 		g["hp_bar_node"] = null
+		_add_combat_state(g)
 		_units.append(g)
 
 	var enemy_count: int = randi_range(3, 5)
@@ -276,7 +283,7 @@ func _build_units() -> void:
 			"armor": randi_range(1, 10),
 			"team": "enemy",
 			"is_mark": mark_name != "" and name_pool[i] == mark_name,
-			"grid_pos": Vector2i(3 + (i % 2), i),
+			"grid_pos": Vector2i(GRID_COLS - 1 - (i % 2), int(i / 2)),
 			"hp_max": 0,
 			"hp_current": 0,
 			"sprite_col": i % (SPRITE_COLS * SPRITE_ROWS),
@@ -286,6 +293,7 @@ func _build_units() -> void:
 		}
 		e["hp_max"] = 20 + int(e["armor"]) * 2
 		e["hp_current"] = e["hp_max"]
+		_add_combat_state(e)
 		_units.append(e)
 
 
@@ -294,6 +302,20 @@ func _sort_initiative() -> void:
 	_initiative.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return int(a["speed"]) > int(b["speed"])
 	)
+
+
+func _add_combat_state(unit: Dictionary) -> void:
+	unit["move_range"] = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
+	unit["attack_range"] = int(unit.get("attack_range", DEFAULT_ATTACK_RANGE))
+	unit["has_moved"] = false
+	unit["has_main_action"] = true
+	unit["has_bonus_action"] = true
+
+
+func _reset_turn_state(unit: Dictionary) -> void:
+	unit["has_moved"] = false
+	unit["has_main_action"] = true
+	unit["has_bonus_action"] = true
 
 
 func _iso_to_screen(grid_pos: Vector2i) -> Vector2:
@@ -305,6 +327,70 @@ func _iso_to_screen(grid_pos: Vector2i) -> Vector2:
 	var x: float = cx + (grid_pos.x - grid_pos.y) * tile_w * 0.5
 	var y: float = cy + (grid_pos.x + grid_pos.y) * tile_h * 0.4
 	return Vector2(x - UNIT_SIZE.x * 0.5, y - UNIT_SIZE.y * 0.5)
+
+
+func _get_active_unit() -> Dictionary:
+	if _battle_over or _initiative.is_empty():
+		return {}
+	return _initiative[_turn_index]
+
+
+func _is_in_grid(grid_pos: Vector2i) -> bool:
+	return grid_pos.x >= 0 and grid_pos.x < GRID_COLS and grid_pos.y >= 0 and grid_pos.y < GRID_ROWS
+
+
+func _grid_distance(a: Vector2i, b: Vector2i) -> int:
+	return absi(a.x - b.x) + absi(a.y - b.y)
+
+
+func _is_tile_occupied(grid_pos: Vector2i, ignored_unit = null) -> bool:
+	for unit: Dictionary in _units:
+		if unit == ignored_unit:
+			continue
+		if int(unit.get("hp_current", 0)) <= 0:
+			continue
+		if unit.get("grid_pos", Vector2i(-1, -1)) == grid_pos:
+			return true
+	return false
+
+
+func _is_in_attack_range(attacker: Dictionary, target: Dictionary) -> bool:
+	if attacker.is_empty() or target.is_empty():
+		return false
+	var attacker_pos: Vector2i = attacker.get("grid_pos", Vector2i(-1, -1))
+	var target_pos: Vector2i = target.get("grid_pos", Vector2i(-1, -1))
+	return _grid_distance(attacker_pos, target_pos) <= int(attacker.get("attack_range", DEFAULT_ATTACK_RANGE))
+
+
+func _get_reachable_tiles(unit: Dictionary) -> Array:
+	var result: Array = []
+	if unit.is_empty() or bool(unit.get("has_moved", false)):
+		return result
+
+	var origin: Vector2i = unit["grid_pos"]
+	var move_range: int = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
+	for y in range(GRID_ROWS):
+		for x in range(GRID_COLS):
+			var pos := Vector2i(x, y)
+			var distance := _grid_distance(origin, pos)
+			if distance == 0 or distance > move_range:
+				continue
+			if _is_tile_occupied(pos, unit):
+				continue
+			result.append(pos)
+	return result
+
+
+func _set_unit_screen_position(unit: Dictionary) -> void:
+	if unit.get("rect_node", null) == null:
+		return
+	var rect := unit["rect_node"] as Control
+	rect.position = _iso_to_screen(unit["grid_pos"])
+
+
+func _move_unit_to(unit: Dictionary, grid_pos: Vector2i) -> void:
+	unit["grid_pos"] = grid_pos
+	_set_unit_screen_position(unit)
 
 
 func _make_unit_texture(sprite_index: int) -> AtlasTexture:
@@ -341,6 +427,66 @@ func _place_units() -> void:
 		_arena.add_child(tex_rect)
 		unit["rect_node"] = tex_rect
 		unit["border_nodes"] = _create_unit_borders(tex_rect)
+
+
+func _show_move_tiles(unit: Dictionary) -> void:
+	_clear_move_tiles()
+	if not _is_player_turn() or bool(unit.get("has_moved", false)):
+		return
+
+	for grid_pos: Vector2i in _get_reachable_tiles(unit):
+		var tile := ColorRect.new()
+		tile.color = COLOR_MOVE_TILE
+		tile.size = MOVE_TILE_SIZE
+		tile.mouse_filter = Control.MOUSE_FILTER_STOP
+		tile.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		tile.position = _iso_to_screen(grid_pos) + (UNIT_SIZE - MOVE_TILE_SIZE) * 0.5
+		tile.gui_input.connect(_on_move_tile_gui_input.bind(grid_pos))
+		tile.mouse_entered.connect(_on_move_tile_mouse_entered.bind(tile))
+		tile.mouse_exited.connect(_on_move_tile_mouse_exited.bind(tile))
+		_arena.add_child(tile)
+		_move_tiles.append(tile)
+
+
+func _clear_move_tiles() -> void:
+	for tile: ColorRect in _move_tiles:
+		if is_instance_valid(tile):
+			tile.queue_free()
+	_move_tiles.clear()
+
+
+func _is_reachable_tile(unit: Dictionary, grid_pos: Vector2i) -> bool:
+	return _get_reachable_tiles(unit).has(grid_pos)
+
+
+func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
+	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
+		return
+	if not _is_player_turn():
+		return
+
+	var unit := _get_active_unit()
+	if unit.is_empty() or not _is_reachable_tile(unit, grid_pos):
+		return
+
+	_move_unit_to(unit, grid_pos)
+	unit["has_moved"] = true
+	_log("[color=#00ffcc]%s[/color] repositioned" % unit["name"])
+	_clear_move_tiles()
+	_clear_target_selection(false)
+	_update_unit_info(unit)
+	_update_targeting_enabled()
+	_update_attack_button_state()
+	_highlight_active(unit)
+	accept_event()
+
+
+func _on_move_tile_mouse_entered(tile: ColorRect) -> void:
+	tile.color = COLOR_MOVE_TILE_HOVER
+
+
+func _on_move_tile_mouse_exited(tile: ColorRect) -> void:
+	tile.color = COLOR_MOVE_TILE
 
 
 func _build_hp_bars() -> void:
@@ -392,18 +538,26 @@ func _update_objective_label() -> void:
 			]
 
 
+func _update_unit_info(unit: Dictionary) -> void:
+	var move_state := "USED" if bool(unit.get("has_moved", false)) else "READY"
+	var action_state := "READY" if bool(unit.get("has_main_action", true)) else "USED"
+	_lbl_unit_info.text = "%s  STR:%d  SPD:%d  ARM:%d  HP:%d/%d  MOVE:%s  ACTION:%s" % [
+		unit["name"], unit["strength"], unit["speed"],
+		unit["armor"], unit["hp_current"], unit["hp_max"],
+		move_state, action_state
+	]
+
+
 func _start_turn() -> void:
 	if _battle_over or _initiative.is_empty():
 		return
 
 	_clear_target_selection(false)
+	_clear_move_tiles()
 	var unit: Dictionary = _initiative[_turn_index]
+	_reset_turn_state(unit)
 	_update_objective_label()
-	# Update team label to highlight whose turn it is
-	_lbl_unit_info.text = "%s  STR:%d  SPD:%d  ARM:%d  HP:%d/%d" % [
-		unit["name"], unit["strength"], unit["speed"],
-		unit["armor"], unit["hp_current"], unit["hp_max"]
-	]
+	_update_unit_info(unit)
 
 	_highlight_active(unit)
 
@@ -411,6 +565,8 @@ func _start_turn() -> void:
 	_btn_pass.disabled = not is_player_turn
 	_update_targeting_enabled()
 	_update_attack_button_state()
+	if is_player_turn:
+		_show_move_tiles(unit)
 
 	if not is_player_turn:
 		await get_tree().create_timer(0.6).timeout
@@ -487,13 +643,19 @@ func _is_player_turn() -> bool:
 
 
 func _is_targetable(unit: Dictionary) -> bool:
-	return _is_player_turn() and str(unit["team"]) == "enemy" and int(unit["hp_current"]) > 0
+	if not _is_player_turn() or str(unit["team"]) != "enemy" or int(unit["hp_current"]) <= 0:
+		return false
+	var active := _get_active_unit()
+	return not active.is_empty() and bool(active.get("has_main_action", true)) and _is_in_attack_range(active, unit)
 
 
 func _is_valid_target(target) -> bool:
 	if not (target is Dictionary):
 		return false
-	return _units.has(target) and str(target.get("team", "")) == "enemy" and int(target.get("hp_current", 0)) > 0
+	if not _units.has(target) or str(target.get("team", "")) != "enemy" or int(target.get("hp_current", 0)) <= 0:
+		return false
+	var active := _get_active_unit()
+	return not active.is_empty() and bool(active.get("has_main_action", true)) and _is_in_attack_range(active, target)
 
 
 func _update_targeting_enabled() -> void:
@@ -513,10 +675,15 @@ func _update_attack_button_state() -> void:
 		_style_attack_button(false)
 		return
 
+	var active := _get_active_unit()
+	var has_action: bool = active.is_empty() or bool(active.get("has_main_action", true))
 	var has_target: bool = _is_valid_target(_selected_target)
 	if _is_player_turn():
 		_btn_attack.disabled = not has_target
-		_btn_attack.text = "ATTACK" if has_target else "SELECT TARGET"
+		if not has_action:
+			_btn_attack.text = "ACTION USED"
+		else:
+			_btn_attack.text = "ATTACK" if has_target else "SELECT ADJACENT TARGET"
 		_style_attack_button(has_target)
 	else:
 		_btn_attack.disabled = true
@@ -565,8 +732,20 @@ func _enemy_act(unit: Dictionary) -> void:
 	if targets.is_empty():
 		_advance_turn()
 		return
+
 	var target: Dictionary = _find_nearest(unit, targets)
-	_apply_attack(unit, target)
+	if not _is_in_attack_range(unit, target):
+		var destination := _get_enemy_move_destination(unit, target)
+		if destination != unit["grid_pos"]:
+			_move_unit_to(unit, destination)
+			unit["has_moved"] = true
+			_log("[color=#ff2244]%s[/color] advanced" % unit["name"])
+
+	if _is_in_attack_range(unit, target):
+		unit["has_main_action"] = false
+		_apply_attack(unit, target)
+	else:
+		_advance_turn()
 
 
 func _on_attack() -> void:
@@ -580,6 +759,9 @@ func _on_attack() -> void:
 		return
 
 	var target: Dictionary = _selected_target
+	unit["has_main_action"] = false
+	_update_unit_info(unit)
+	_clear_move_tiles()
 	_clear_target_selection()
 	_apply_attack(unit, target)
 
@@ -592,15 +774,26 @@ func _on_pass() -> void:
 
 func _find_nearest(attacker: Dictionary, candidates: Array) -> Dictionary:
 	var best: Dictionary = candidates[0]
-	var best_dist: float = INF
+	var best_dist: int = 999
 	for c: Dictionary in candidates:
 		var ap: Vector2i = attacker["grid_pos"]
 		var cp: Vector2i = c["grid_pos"]
-		var d: float = Vector2(float(ap.x), float(ap.y)).distance_to(Vector2(float(cp.x), float(cp.y)))
+		var d: int = _grid_distance(ap, cp)
 		if d < best_dist:
 			best_dist = d
 			best = c
 	return best
+
+
+func _get_enemy_move_destination(unit: Dictionary, target: Dictionary) -> Vector2i:
+	var best_pos: Vector2i = unit["grid_pos"]
+	var best_dist: int = _grid_distance(unit["grid_pos"], target["grid_pos"])
+	for pos: Vector2i in _get_reachable_tiles(unit):
+		var dist := _grid_distance(pos, target["grid_pos"])
+		if dist < best_dist:
+			best_dist = dist
+			best_pos = pos
+	return best_pos
 
 
 func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
@@ -667,6 +860,7 @@ func _advance_turn() -> void:
 	if _initiative.is_empty():
 		return
 	_clear_target_selection(false)
+	_clear_move_tiles()
 	_turn_index = (_turn_index + 1) % _initiative.size()
 	if _turn_index == 0:
 		_round += 1
@@ -694,6 +888,7 @@ func _show_result(won: bool) -> void:
 	_battle_over = true
 	_btn_attack.disabled = true
 	_btn_pass.disabled = true
+	_clear_move_tiles()
 	_clear_target_selection()
 	_result_overlay.visible = true
 
