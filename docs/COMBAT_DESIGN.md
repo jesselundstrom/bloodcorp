@@ -6,69 +6,134 @@ Bloodcorp's arena battles should grow into a compact tactical combat system insp
 
 - **Compact tactical arenas:** Battles happen on readable isometric arenas with enough room for flanking, blocking, retreating, and pushing enemies into danger.
 - **cRPG-style movement:** Gladiators can move a limited distance on their turn instead of being locked into static auto-battle positions.
-- **Action economy:** Each active gladiator should eventually have a main action and a bonus action, making each turn a small tactical puzzle.
-- **Character identity:** Every gladiator should feel different through class-like skills, cyberware, injuries, traits, and equipment.
+- **Action economy:** Each active gladiator has a main action and a bonus action, making each turn a small tactical puzzle.
+- **Character identity:** Every gladiator should feel different through class-like skills, cyberware, injuries, traits, and equipment — and through distinct stat blocks that change how attack and damage rolls play out.
 - **Readable spectacle:** Turns should remain fast, clear, and violent, with sponsor objectives and crowd appeal shaping what the player values.
 
-## Current Battle Foundation
+## Current Battle Foundation *(implemented)*
 
-The first tactical movement slice is implemented in `scripts/Battle.gd`:
+The tactical combat foundation is live in `scripts/Battle.gd`:
 
-- Arena grid is 7x5, with bounded left/right deployment so units no longer spawn outside the grid.
+- Arena grid is 7x5, with bounded left/right deployment so units never spawn outside the grid.
 - Player turns show clickable highlighted movement tiles for reachable empty spaces.
-- Units reserve `move_range`, `attack_range`, `has_moved`, `has_main_action`, and `has_bonus_action` fields.
-- Movement is once per turn; basic attacks consume the main action and require melee range.
+- Units have `move_range`, `attack_range`, `has_moved`, `has_main_action`, and `has_bonus_action` fields — all reset each turn.
+- Movement is once per turn; basic attacks consume the main action and require melee range (attack_range 1).
 - Enemy AI moves toward the nearest living player and attacks if it reaches melee range.
-- Sponsor objectives, kill tracking, target mark highlighting, and result rewards/penalties remain tied into battle flow.
+- Sponsor objectives, kill tracking, target mark highlighting, and result rewards/penalties are all wired into battle flow.
+- Action bar shows MOVE / ACTION / BONUS state per unit.
+- Style score (`_style_score`) is displayed on all three contract types; Execution Mark kills trigger `★ THE CROWD ROARS! ★` log flair.
+- **Current damage formula (legacy placeholder):** `base_damage = max(1, attacker.strength - target.armor)` + `FLANK_BONUS (3)` if flanked + `MARK_BONUS (2)` if target is marked.
+- **Current HP formula (legacy placeholder):** `max_hp = 20 + armor * 2`.
 
-This is a foundation, not the finished tactical combat system. Bonus actions, skills, terrain, and richer positioning rules still need dedicated slices.
+Three character skills are live: Brutal Charge (main action), Marksman (passive range upgrade), Execution Mark (bonus action). Assignment is currently hardcoded by roster index — a data-driven refactor is the active task (see TASKS.md).
 
 ## Turn Structure
 
-Each active gladiator should eventually support:
+Each active gladiator supports:
 
 - **Movement:** Reposition within a limited range on the grid.
 - **Main action:** Attack, use a major skill, interact with an arena object, or take a defensive stance.
 - **Bonus action:** Use a smaller skill, quick item, shove, stance swap, cyberware trigger, or weapon-specific trick.
 - **End turn:** Commit the chosen actions and move initiative forward.
 
-The current speed-sorted initiative system can remain as the foundation. The implemented movement slice adds player-readable choices without rewriting the whole battle loop.
+The speed-sorted initiative system is the live foundation. Bonus action selection UI is being unified as part of the skills refactor.
+
+## D&D-Style Hit/Miss/Damage Resolution *(design intent — not yet implemented)*
+
+The legacy `STR - ARM` formula is a placeholder. The intended system uses dice rolls and gladiator stat blocks, similar to D&D 5e but tuned for a fast gladiator game.
+
+### Gladiator Stat Block
+
+Each gladiator has five core stats. Stats start in the range 8–18 and change via leveling, equipment, and cyberware:
+
+| Stat | Abbrev | Drives |
+|------|--------|--------|
+| Strength | STR | Melee attack rolls and melee damage |
+| Dexterity | DEX | Ranged attack rolls, ranged damage, Defense Class, initiative |
+| Constitution | CON | Max HP |
+| Intelligence | INT | Tech/cyberware skill rolls |
+| Charisma | CHA | Style score modifier, crowd reaction |
+
+**Stat modifier formula** (classic D&D): `mod = floor((stat - 10) / 2)`. A stat of 10 gives +0, 14 gives +2, 8 gives -1.
+
+### HP
+
+`max_hp = 8 + CON_mod` per gladiator (flat; no per-level scaling yet). Replaces the `20 + armor * 2` placeholder once the stat block is wired in.
+
+### Defense Class (DC)
+
+Replaces flat armor subtraction. `DC = 10 + DEX_mod + armor_bonus`. Heavy armor grants a larger `armor_bonus` but may impose a DEX_mod cap. A naked gladiator with DEX 10 has DC 10.
+
+### Attack Roll
+
+`attack_roll = 1d20 + attack_bonus`  
+- Melee attack bonus = STR_mod + proficiency  
+- Ranged attack bonus = DEX_mod + proficiency  
+- Finesse weapons (knives, blades) = max(STR_mod, DEX_mod)  
+- Tech/cyberware skills = INT_mod + proficiency  
+
+**Hit condition:** `attack_roll >= target.DC`  
+**Miss:** no damage, no effect.  
+**Critical hit:** natural 20 (the die shows 20 before bonuses) — doubles the number of damage dice rolled.
+
+### Damage Roll
+
+`damage = weapon_damage_dice + stat_mod`  
+- Example: a short sword deals `1d6 + STR_mod`.  
+- On a crit: `2d6 + STR_mod`.
+
+### Flanking → Advantage
+
+Flanking grants **advantage** on the attack roll: roll 2d20 and take the higher result. Replaces the flat `FLANK_BONUS (3)`.
+
+### Execution Mark → Vulnerability
+
+A marked target gives the attacker **advantage** on attack rolls against it. Replaces the flat `MARK_BONUS (2)`.
+
+### Proficiency
+
+Simple flat bonus scaling with gladiator tier: +2 (recruit), +3 (veteran), +4 (champion). Tied to level/rank, not individual skill points.
+
+### Style / CHA Hook
+
+`CHA_mod` adds directly to the style score earned per kill or spectacular action. Crowd reactions (log flair) can be gated on a CHA threshold.
 
 ## Skills
 
-Skills should be tied to gladiator identity and equipment. Examples:
+Skills are tied to gladiator identity and stat blocks. Examples:
 
-- **Brutal Charge:** Move in a straight line and strike the first enemy reached.
-- **Execution Mark:** Bonus action that marks a wounded target for sponsor-favored kills.
-- **Overclocked Reflexes:** Cyberware skill that grants extra movement or a dodge bonus.
-- **Shield Bash:** Push an adjacent enemy and deal low damage.
-- **Adrenal Inject:** Bonus action that restores a small amount of health but risks later injury.
+- **Brutal Charge:** Move in a straight line and strike the first enemy reached. Uses STR attack roll.
+- **Execution Mark:** Bonus action — marks a wounded target, granting the attacker advantage on all rolls against it this battle.
+- **Overclocked Reflexes:** Cyberware skill — grants extra movement or imposes disadvantage on the next attack against this unit. Uses INT.
+- **Shield Bash:** Push an adjacent enemy and deal low damage. STR attack roll; on hit, forced move 1 tile.
+- **Adrenal Inject:** Bonus action — restores a small amount of HP but may impose a penalty die on CON-adjacent rolls later.
 
-Skills should define:
+Skills define:
 
 - Display name and short description.
 - Main action or bonus action cost.
 - Target rules.
 - Range or movement rules.
+- Which stat drives the attack roll (if any).
 - Cooldown or per-battle limit where needed.
 - Sponsor/style tags where useful.
 
 ## Equipment
 
-Equipment should do more than change stats over time. Weapons, armor, and cyberware can grant active or passive combat options.
+Equipment does more than change stats. Weapons, armor, and cyberware grant active or passive combat options.
 
-- **Weapons:** Define base damage, range, and at least one tactical identity hook.
-- **Armor:** Modify survivability, movement, initiative, or defensive actions.
-- **Cyberware:** Add unusual skills, sponsor appeal, and risk/reward effects.
+- **Weapons:** Define damage dice, range, attack stat (STR/DEX/finesse), and at least one tactical identity hook.
+- **Armor:** Set `armor_bonus` for DC; may cap DEX_mod contribution; may modify initiative.
+- **Cyberware:** Add unusual skills, sponsor appeal, INT-driven effects, and risk/reward mechanics.
 
-Management should show what a gladiator can do before deployment. Battle should surface granted skills clearly when that gladiator is active.
+Management should show what a gladiator can do before deployment. Battle surfaces granted skills clearly when that gladiator is active.
 
 ## Next Implementation Targets
 
-Good next slices:
-
-1. Add a minimal action bar that explicitly shows movement, main action, bonus action, and end turn state.
-2. Add terrain or obstacle tiles that block movement and create stronger positioning choices.
-3. Add one character-specific active skill using the existing main/bonus action fields.
-4. Add basic range variation through weapons or skills so melee adjacency is not the only target rule.
-5. Add crowd/style scoring hooks that sponsors can reference beyond kills, rounds, and marked targets.
+1. **Data-driven skill refactor** *(active — see TASKS.md Now)*: replace hardcoded skill assignment with a skill data dict; three existing skills refactored with no behavior change; unified bonus action selection UI.
+2. **Stat block wiring**: add STR/DEX/CON/INT/CHA to gladiator data; compute modifiers; replace the legacy HP formula.
+3. **D&D-style attack resolution**: replace `STR - ARM` with `1d20 + attack_bonus vs DC`; implement hit/miss/crit; wire flanking to advantage.
+4. **Damage dice**: replace flat damage with `weapon_dice + stat_mod`; crit doubles dice.
+5. **4th skill archetype + skill info UI**: new archetype using the data model; skill names, costs, and cooldowns shown in battle UI per unit.
+6. **Terrain / obstacle tiles**: block movement, create stronger positioning choices.
+7. **Crowd/style scoring hooks via CHA**: sponsors can reference style beyond kills, rounds, and marked targets.
