@@ -541,9 +541,10 @@ func _update_objective_label() -> void:
 func _update_unit_info(unit: Dictionary) -> void:
 	var move_state := "USED" if bool(unit.get("has_moved", false)) else "READY"
 	var action_state := "READY" if bool(unit.get("has_main_action", true)) else "USED"
-	_lbl_unit_info.text = "%s  STR:%d  SPD:%d  ARM:%d  HP:%d/%d  MOVE:%s  ACTION:%s" % [
-		unit["name"], unit["strength"], unit["speed"],
-		unit["armor"], unit["hp_current"], unit["hp_max"],
+	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: —" % [
+		unit["name"],
+		unit["hp_current"], unit["hp_max"],
+		unit["strength"], unit["speed"], unit["armor"],
 		move_state, action_state
 	]
 
