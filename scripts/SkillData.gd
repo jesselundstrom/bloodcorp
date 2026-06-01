@@ -44,7 +44,7 @@ const SKILLS: Dictionary = {
 # Universal bonus action available to every unit (not a gladiator identity skill).
 const SHOVE: Dictionary = {
 	"display_name": "Shove",
-	"description": "Push an adjacent enemy back, or into a wall for damage.",
+	"description": "Push an adjacent enemy back, into an impact, or into a hazard.",
 	"action_cost": "bonus",
 	"valid_targets": "enemy",
 	"attack_stat": "",

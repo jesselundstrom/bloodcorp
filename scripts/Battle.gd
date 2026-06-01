@@ -8,11 +8,11 @@ const ENEMY_NAMES := [
 
 # Sponsor data is read from GameState.active_sponsor at _ready.
 
-const GRID_COLS := 7
-const GRID_ROWS := 5
+const GRID_COLS := 9
+const GRID_ROWS := 6
 const UNIT_SIZE := Vector2(56, 56)
 const MOVE_TILE_SIZE := Vector2(42, 28)
-const DEFAULT_MOVE_RANGE := 2
+const DEFAULT_MOVE_RANGE := 3
 const DEFAULT_ATTACK_RANGE := 1
 
 # Sprite sheet: 1536x1024, 3 columns x 2 rows of 512x512 frames
@@ -34,16 +34,47 @@ const COLOR_MOVE_TILE_HOVER := Color(0.0, 1.0, 0.8, 0.52)
 const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
 const COLOR_OBSTACLE := Color(0.12, 0.09, 0.07, 0.92)
 const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.85)
+const COLOR_HAZARD := Color(1.0, 0.133, 0.267, 0.32)
+const COLOR_HAZARD_BORDER := Color(1.0, 0.667, 0.0, 0.9)
 const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
 const COLOR_MARK := Color(0.8, 0.0, 1.0, 1.0)
 const PROFICIENCY_BONUS := 2  # recruit tier; +3 veteran / +4 champion once rank field lands
 const _DEFAULT_SKILL_BY_INDEX: Array = ["brutal_charge", "marksman", "execution_mark", "shield_bash"]
 const MELEE_DAMAGE_DIE := 6   # 1d6 placeholder until weapon system
 const RANGED_DAMAGE_DIE := 8  # 1d8 placeholder for Marksman
+const SHOVE_IMPACT_DAMAGE := 2
 
-# Midfield cols 2-4 only; avoids player deployment (cols 0-1) and enemy (cols 5-6)
-const OBSTACLE_POSITIONS: Array = [
-	Vector2i(2, 1), Vector2i(4, 1), Vector2i(3, 2), Vector2i(2, 3), Vector2i(4, 3)
+const ARENA_LAYOUTS: Array = [
+	{
+		"name": "FURNACE RUN",
+		"blockers": [Vector2i(3, 1), Vector2i(5, 1), Vector2i(4, 4)],
+		"hazards": [Vector2i(4, 2), Vector2i(4, 3), Vector2i(2, 3), Vector2i(6, 2)],
+		"player_spawns": [
+			Vector2i(0, 2), Vector2i(0, 3), Vector2i(1, 1), Vector2i(1, 4), Vector2i(0, 1),
+			Vector2i(0, 4), Vector2i(1, 2), Vector2i(1, 3), Vector2i(0, 0)
+		],
+		"enemy_spawns": [Vector2i(8, 2), Vector2i(8, 3), Vector2i(7, 1), Vector2i(7, 4), Vector2i(8, 1)],
+	},
+	{
+		"name": "BROKEN PILLARS",
+		"blockers": [Vector2i(3, 1), Vector2i(5, 1), Vector2i(4, 3), Vector2i(2, 4), Vector2i(6, 4)],
+		"hazards": [Vector2i(4, 2), Vector2i(3, 3), Vector2i(5, 3)],
+		"player_spawns": [
+			Vector2i(0, 1), Vector2i(0, 4), Vector2i(1, 2), Vector2i(1, 3), Vector2i(0, 2),
+			Vector2i(0, 3), Vector2i(1, 0), Vector2i(1, 5), Vector2i(0, 0)
+		],
+		"enemy_spawns": [Vector2i(8, 1), Vector2i(8, 4), Vector2i(7, 2), Vector2i(7, 3), Vector2i(8, 3)],
+	},
+	{
+		"name": "BLOOD CHANNELS",
+		"blockers": [Vector2i(4, 0), Vector2i(4, 5), Vector2i(2, 2), Vector2i(6, 3)],
+		"hazards": [Vector2i(3, 2), Vector2i(4, 2), Vector2i(5, 2), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)],
+		"player_spawns": [
+			Vector2i(0, 2), Vector2i(0, 3), Vector2i(1, 1), Vector2i(1, 4), Vector2i(0, 1),
+			Vector2i(0, 4), Vector2i(1, 2), Vector2i(1, 3), Vector2i(0, 0)
+		],
+		"enemy_spawns": [Vector2i(8, 2), Vector2i(8, 3), Vector2i(7, 1), Vector2i(7, 4), Vector2i(8, 4)],
+	},
 ]
 
 var _units: Array = []
@@ -62,6 +93,7 @@ var _mark_killed: bool = false
 var _sponsor: Dictionary = {}
 var _marked_unit = null
 var _style_score: int = 0
+var _selected_layout: Dictionary = {}
 
 @onready var _arena: Control = $Layout/MainRow/Arena
 @onready var _player_list: VBoxContainer = $Layout/MainRow/PlayerHPPanel/PlayerList
@@ -91,15 +123,17 @@ func _ready() -> void:
 		"penalty": 200,
 	}
 	_sprite_sheet = load(SPRITE_SHEET_PATH) as Texture2D
+	_select_arena_layout()
 	_apply_styles()
 	_build_units()
 	_sort_initiative()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_draw_arena_floor()
-	_place_units()
 	_draw_obstacles()
+	_place_units()
 	_build_combat_log()
+	_log("[color=#ffaa00]ARENA: %s[/color]" % _selected_layout.get("name", "UNKNOWN"))
 	_build_hp_bars()
 	_btn_attack.pressed.connect(_on_attack)
 	_btn_bonus.pressed.connect(_on_bonus_pressed)
@@ -111,47 +145,71 @@ func _ready() -> void:
 	_start_turn()
 
 
-func _is_obstacle(pos: Vector2i) -> bool:
-	return OBSTACLE_POSITIONS.has(pos)
+func _select_arena_layout() -> void:
+	_selected_layout = ARENA_LAYOUTS.pick_random()
+
+
+func _layout_positions(key: String) -> Array:
+	if _selected_layout.is_empty():
+		return []
+	return _selected_layout.get(key, [])
+
+
+func _is_blocker(pos: Vector2i) -> bool:
+	return _layout_positions("blockers").has(pos)
+
+
+func _is_hazard(pos: Vector2i) -> bool:
+	return _layout_positions("hazards").has(pos)
+
+
+func _is_walkable(pos: Vector2i, ignored_unit = null) -> bool:
+	return _is_in_grid(pos) and not _is_blocker(pos) and not _is_tile_occupied(pos, ignored_unit)
 
 
 func _draw_obstacles() -> void:
-	for pos: Vector2i in OBSTACLE_POSITIONS:
-		var tile := ColorRect.new()
-		tile.color = COLOR_OBSTACLE
-		tile.size = MOVE_TILE_SIZE
-		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.position = _iso_to_screen(pos) + (UNIT_SIZE - MOVE_TILE_SIZE) * 0.5
+	for pos: Vector2i in _layout_positions("hazards"):
+		_draw_terrain_tile(pos, COLOR_HAZARD, COLOR_HAZARD_BORDER)
+	for pos: Vector2i in _layout_positions("blockers"):
+		_draw_terrain_tile(pos, COLOR_OBSTACLE, COLOR_OBSTACLE_BORDER)
 
-		var border_top := ColorRect.new()
-		border_top.color = COLOR_OBSTACLE_BORDER
-		border_top.size = Vector2(MOVE_TILE_SIZE.x, 2)
-		border_top.position = Vector2.ZERO
-		border_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.add_child(border_top)
 
-		var border_bottom := ColorRect.new()
-		border_bottom.color = COLOR_OBSTACLE_BORDER
-		border_bottom.size = Vector2(MOVE_TILE_SIZE.x, 2)
-		border_bottom.position = Vector2(0, MOVE_TILE_SIZE.y - 2)
-		border_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.add_child(border_bottom)
+func _draw_terrain_tile(pos: Vector2i, fill_color: Color, border_color: Color) -> void:
+	var tile := ColorRect.new()
+	tile.color = fill_color
+	tile.size = MOVE_TILE_SIZE
+	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tile.position = _iso_to_screen(pos) + (UNIT_SIZE - MOVE_TILE_SIZE) * 0.5
 
-		var border_left := ColorRect.new()
-		border_left.color = COLOR_OBSTACLE_BORDER
-		border_left.size = Vector2(2, MOVE_TILE_SIZE.y)
-		border_left.position = Vector2.ZERO
-		border_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.add_child(border_left)
+	var border_top := ColorRect.new()
+	border_top.color = border_color
+	border_top.size = Vector2(MOVE_TILE_SIZE.x, 2)
+	border_top.position = Vector2.ZERO
+	border_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tile.add_child(border_top)
 
-		var border_right := ColorRect.new()
-		border_right.color = COLOR_OBSTACLE_BORDER
-		border_right.size = Vector2(2, MOVE_TILE_SIZE.y)
-		border_right.position = Vector2(MOVE_TILE_SIZE.x - 2, 0)
-		border_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.add_child(border_right)
+	var border_bottom := ColorRect.new()
+	border_bottom.color = border_color
+	border_bottom.size = Vector2(MOVE_TILE_SIZE.x, 2)
+	border_bottom.position = Vector2(0, MOVE_TILE_SIZE.y - 2)
+	border_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tile.add_child(border_bottom)
 
-		_arena.add_child(tile)
+	var border_left := ColorRect.new()
+	border_left.color = border_color
+	border_left.size = Vector2(2, MOVE_TILE_SIZE.y)
+	border_left.position = Vector2.ZERO
+	border_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tile.add_child(border_left)
+
+	var border_right := ColorRect.new()
+	border_right.color = border_color
+	border_right.size = Vector2(2, MOVE_TILE_SIZE.y)
+	border_right.position = Vector2(MOVE_TILE_SIZE.x - 2, 0)
+	border_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tile.add_child(border_right)
+
+	_arena.add_child(tile)
 
 
 func _draw_arena_floor() -> void:
@@ -410,12 +468,19 @@ func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: S
 	return await _apply_damage(target, dmg)
 
 
+func _spawn_position(key: String, index: int, fallback: Vector2i) -> Vector2i:
+	var spawns := _layout_positions(key)
+	if index >= 0 and index < spawns.size():
+		return spawns[index]
+	return fallback
+
+
 func _build_units() -> void:
 	for i in range(GameState.roster.size()):
 		var g: Dictionary = GameState.roster[i].duplicate()
 		g["team"] = "player"
 		g["is_mark"] = false
-		g["grid_pos"] = Vector2i(i % 2, floori(i / 2.0))
+		g["grid_pos"] = _spawn_position("player_spawns", i, Vector2i(i % 2, floori(i / 2.0)))
 		var con_mod: int = _stat_mod(int(g.get("constitution", 10)))
 		var dex_mod: int = _stat_mod(int(g.get("dexterity", 10)))
 		g["hp_max"] = 8 + con_mod
@@ -456,7 +521,7 @@ func _build_units() -> void:
 			"charisma": randi_range(8, 18),
 			"team": "enemy",
 			"is_mark": mark_name != "" and name_pool[i] == mark_name,
-			"grid_pos": Vector2i(GRID_COLS - 1 - (i % 2), floori(i / 2.0)),
+			"grid_pos": _spawn_position("enemy_spawns", i, Vector2i(GRID_COLS - 1 - (i % 2), floori(i / 2.0))),
 			"hp_max": 0,
 			"hp_current": 0,
 			"defense_class": 0,
@@ -520,6 +585,15 @@ func _grid_distance(a: Vector2i, b: Vector2i) -> int:
 	return absi(a.x - b.x) + absi(a.y - b.y)
 
 
+func _grid_neighbors(pos: Vector2i) -> Array:
+	return [
+		pos + Vector2i(1, 0),
+		pos + Vector2i(-1, 0),
+		pos + Vector2i(0, 1),
+		pos + Vector2i(0, -1),
+	]
+
+
 func _is_tile_occupied(grid_pos: Vector2i, ignored_unit = null) -> bool:
 	for unit: Dictionary in _units:
 		if unit == ignored_unit:
@@ -546,15 +620,21 @@ func _get_reachable_tiles(unit: Dictionary) -> Array:
 
 	var origin: Vector2i = unit["grid_pos"]
 	var move_range: int = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
-	for y in range(GRID_ROWS):
-		for x in range(GRID_COLS):
-			var pos := Vector2i(x, y)
-			var distance := _grid_distance(origin, pos)
-			if distance == 0 or distance > move_range:
+	var frontier: Array = [origin]
+	var distances: Dictionary = {origin: 0}
+	var cursor := 0
+	while cursor < frontier.size():
+		var current: Vector2i = frontier[cursor]
+		cursor += 1
+		var current_distance: int = distances[current]
+		if current_distance >= move_range:
+			continue
+		for next: Vector2i in _grid_neighbors(current):
+			if distances.has(next) or not _is_walkable(next, unit):
 				continue
-			if _is_tile_occupied(pos, unit) or _is_obstacle(pos):
-				continue
-			result.append(pos)
+			distances[next] = current_distance + 1
+			frontier.append(next)
+			result.append(next)
 	return result
 
 
@@ -989,8 +1069,9 @@ func _on_bonus_pressed() -> void:
 				label += " (NO TARGET)"
 		else:
 			label = SkillData.SKILLS.get(action_key, {}).get("display_name", action_key.to_upper())
-			var targets_enemy := SkillData.SKILLS.get(action_key, {}).get("valid_targets", "") == "enemy"
-			var targets_wounded := SkillData.SKILLS.get(action_key, {}).get("valid_targets", "") == "wounded_enemy"
+			var valid_targets := String(SkillData.SKILLS.get(action_key, {}).get("valid_targets", ""))
+			var targets_enemy: bool = valid_targets == "enemy"
+			var targets_wounded: bool = valid_targets == "wounded_enemy"
 			if targets_wounded and _get_mark_target(active).is_empty():
 				label += " (NO TARGET)"
 			elif targets_enemy and _get_adjacent_enemy(active).is_empty():
@@ -998,7 +1079,7 @@ func _on_bonus_pressed() -> void:
 		_bonus_popup.add_item(label, i)
 	_bonus_popup.popup(Rect2i(
 		int(_btn_bonus.global_position.x),
-		int(_btn_bonus.global_position.y) - _bonus_popup.get_minimum_size().y - 4,
+		int(_btn_bonus.global_position.y) - 96,
 		int(_btn_bonus.size.x), 0
 	))
 
@@ -1108,7 +1189,7 @@ func _get_charge_target(unit: Dictionary) -> Dictionary:
 		var check := pos + step * dist
 		if not _is_in_grid(check):
 			break
-		if _is_obstacle(check):
+		if _is_blocker(check):
 			break
 		for u: Dictionary in _units:
 			if u["team"] == "enemy" and int(u.get("hp_current", 0)) > 0 and u["grid_pos"] == check:
@@ -1138,7 +1219,7 @@ func _on_charge() -> void:
 	var land := pos
 	for dist in range(1, int(unit.get("move_range", DEFAULT_MOVE_RANGE)) + 1):
 		var next := pos + step * dist
-		if not _is_in_grid(next) or _is_obstacle(next) or _is_tile_occupied(next, unit):
+		if not _is_in_grid(next) or _is_blocker(next) or _is_tile_occupied(next, unit):
 			break
 		land = next
 
@@ -1162,6 +1243,16 @@ func _apply_attack_direct(attacker: Dictionary, target: Dictionary) -> void:
 	_advance_turn()
 
 
+func _shove_impact_name(dest: Vector2i, target: Dictionary) -> String:
+	if not _is_in_grid(dest):
+		return "wall"
+	if _is_blocker(dest):
+		return "blocker"
+	if _is_tile_occupied(dest, target):
+		return "unit"
+	return "wall"
+
+
 func _on_shove() -> void:
 	if _battle_over or _initiative.is_empty() or not _is_player_turn():
 		return
@@ -1179,15 +1270,27 @@ func _on_shove() -> void:
 	var push_dir: Vector2i = target["grid_pos"] - unit["grid_pos"]
 	var dest: Vector2i = target["grid_pos"] + push_dir
 
-	if _is_in_grid(dest) and not _is_tile_occupied(dest, target) and not _is_obstacle(dest):
+	if _is_walkable(dest, target):
 		_move_unit_to(target, dest)
-		_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] back!" % [unit["name"], target["name"]])
+		if _is_hazard(dest):
+			_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] into arena hazard - [color=#ffaa00]%d[/color] dmg!" % [
+				unit["name"], target["name"], SHOVE_IMPACT_DAMAGE
+			])
+			if str(target.get("team", "")) == "enemy":
+				_style_score += 1
+				_log("[color=#ffaa00]HAZARD POP - STYLE +1[/color]")
+				_update_objective_label()
+			var hazard_killed := await _apply_damage(target, SHOVE_IMPACT_DAMAGE)
+			if hazard_killed and _check_battle_end():
+				return
+		else:
+			_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] back!" % [unit["name"], target["name"]])
 	else:
-		var wall_damage := 2
-		_log("[color=#00ffcc]%s[/color] slammed [color=#ff2244]%s[/color] into the wall — [color=#ffaa00]%d[/color] dmg!" % [
-			unit["name"], target["name"], wall_damage
+		var impact_name := _shove_impact_name(dest, target)
+		_log("[color=#00ffcc]%s[/color] slammed [color=#ff2244]%s[/color] into %s - [color=#ffaa00]%d[/color] dmg!" % [
+			unit["name"], target["name"], impact_name, SHOVE_IMPACT_DAMAGE
 		])
-		var killed := await _apply_damage(target, wall_damage)
+		var killed := await _apply_damage(target, SHOVE_IMPACT_DAMAGE)
 		if killed and _check_battle_end():
 			return
 

@@ -47,10 +47,12 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 
 ### Current Implementation Notes
 
-- Battle uses a 7x5 isometric grid with bounded left/right deployment.
-- Player turns support clickable highlighted movement tiles, one movement, and melee-only basic attacks.
+- Battle uses a 9x6 isometric grid with one randomly selected arena layout per battle.
+- Arena layouts define blockers, shove hazards, player spawns, and enemy spawns.
+- Player turns support path-aware clickable movement tiles, one movement, and melee-only basic attacks unless a skill changes range.
 - Battle units currently reserve `move_range`, `attack_range`, `has_moved`, `has_main_action`, and `has_bonus_action`.
-- Enemy AI advances toward the nearest living player, then attacks if in melee range.
+- Enemy AI advances toward the nearest living player using reachable movement tiles, then attacks if in range.
+- Shove can push enemies, slam them into walls/blockers/units, or force them into hazards for 2 damage and STYLE +1.
 - Sponsor objectives are tracked during Battle; result rewards/penalties are based on the selected sponsor contract.
 - `SponsorSelect.gd` builds its UI in script; keep parent/child ownership simple because the scene root itself has no authored children.
 
