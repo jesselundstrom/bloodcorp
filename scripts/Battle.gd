@@ -37,7 +37,7 @@ const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.85)
 const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
 const COLOR_MARK := Color(0.8, 0.0, 1.0, 1.0)
 const PROFICIENCY_BONUS := 2  # recruit tier; +3 veteran / +4 champion once rank field lands
-const _DEFAULT_SKILL_BY_INDEX: Array = ["brutal_charge", "marksman", "execution_mark"]
+const _DEFAULT_SKILL_BY_INDEX: Array = ["brutal_charge", "marksman", "execution_mark", "shield_bash"]
 const MELEE_DAMAGE_DIE := 6   # 1d6 placeholder until weapon system
 const RANGED_DAMAGE_DIE := 8  # 1d8 placeholder for Marksman
 
@@ -757,13 +757,13 @@ func _update_unit_info(unit: Dictionary) -> void:
 		match sk.get("action_cost", ""):
 			"main":
 				var ready := bool(unit.get("has_main_action", true)) and not bool(unit.get("has_moved", false))
-				skill_part = "  SKILL: %s" % (display.to_upper() if ready else "USED")
+				skill_part = "  SKILL[ACTION]: %s" % (display.to_upper() if ready else "USED")
 			"passive":
 				var atk_ready := bool(unit.get("has_main_action", true))
-				skill_part = "  SKILL: %s%s" % [display.to_upper(), "" if atk_ready else "  ACTION USED"]
+				skill_part = "  SKILL[PASSIVE]: %s%s" % [display.to_upper(), "" if atk_ready else " (ACTION USED)"]
 			"bonus":
 				var bonus_ready := bool(unit.get("has_bonus_action", true))
-				skill_part = "  SKILL: %s (%s)" % [display.to_upper(), "READY" if bonus_ready else "USED"]
+				skill_part = "  SKILL[BONUS]: %s (%s)" % [display.to_upper(), "READY" if bonus_ready else "USED"]
 	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: %s%s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
@@ -959,6 +959,10 @@ func _update_bonus_button_state() -> void:
 			if not _get_mark_target(active).is_empty():
 				any_usable = true
 				break
+		elif action_key == "shield_bash":
+			if not _get_adjacent_enemy(active).is_empty():
+				any_usable = true
+				break
 		else:
 			any_usable = true
 			break
@@ -985,10 +989,12 @@ func _on_bonus_pressed() -> void:
 				label += " (NO TARGET)"
 		else:
 			label = SkillData.SKILLS.get(action_key, {}).get("display_name", action_key.to_upper())
-			if action_key == "execution_mark":
-				var has_target := not _get_mark_target(active).is_empty()
-				if not has_target:
-					label += " (NO TARGET)"
+			var targets_enemy := SkillData.SKILLS.get(action_key, {}).get("valid_targets", "") == "enemy"
+			var targets_wounded := SkillData.SKILLS.get(action_key, {}).get("valid_targets", "") == "wounded_enemy"
+			if targets_wounded and _get_mark_target(active).is_empty():
+				label += " (NO TARGET)"
+			elif targets_enemy and _get_adjacent_enemy(active).is_empty():
+				label += " (NO TARGET)"
 		_bonus_popup.add_item(label, i)
 	_bonus_popup.popup(Rect2i(
 		int(_btn_bonus.global_position.x),
@@ -1009,6 +1015,8 @@ func _on_bonus_popup_id_pressed(id: int) -> void:
 			_on_shove()
 		"execution_mark":
 			_on_mark()
+		"shield_bash":
+			_on_shield_bash()
 
 
 func _update_charge_button_state() -> void:
@@ -1182,6 +1190,31 @@ func _on_shove() -> void:
 		var killed := await _apply_damage(target, wall_damage)
 		if killed and _check_battle_end():
 			return
+
+	_update_unit_info(unit)
+	_update_bonus_button_state()
+
+
+func _on_shield_bash() -> void:
+	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+		return
+
+	var unit := _get_active_unit()
+	if unit.is_empty() or not bool(unit.get("has_bonus_action", true)):
+		return
+
+	var target := _get_adjacent_enemy(unit)
+	if target.is_empty():
+		return
+
+	unit["has_bonus_action"] = false
+	var bash_damage := 2
+	_log("[color=#00ffcc]%s[/color] shield bashes [color=#ff2244]%s[/color] for [color=#ffaa00]%d[/color] dmg!" % [
+		unit["name"], target["name"], bash_damage
+	])
+	var killed := await _apply_damage(target, bash_damage)
+	if killed and _check_battle_end():
+		return
 
 	_update_unit_info(unit)
 	_update_bonus_button_state()

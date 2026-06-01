@@ -30,6 +30,15 @@ const SKILLS: Dictionary = {
 		"cooldown": 0,
 		"attack_range": 1,
 	},
+	"shield_bash": {
+		"display_name": "Shield Bash",
+		"description": "Slam an adjacent enemy with your shield, dealing 2 damage.",
+		"action_cost": "bonus",
+		"valid_targets": "enemy",
+		"attack_stat": "strength",
+		"cooldown": 0,
+		"attack_range": 1,
+	},
 }
 
 # Universal bonus action available to every unit (not a gladiator identity skill).
