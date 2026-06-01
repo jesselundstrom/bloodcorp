@@ -35,6 +35,8 @@ const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
 const COLOR_OBSTACLE := Color(0.12, 0.09, 0.07, 0.92)
 const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.85)
 const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
+const COLOR_MARK := Color(0.8, 0.0, 1.0, 1.0)
+const MARK_BONUS := 2
 const FLANK_BONUS := 3
 
 # Midfield cols 2-4 only; avoids player deployment (cols 0-1) and enemy (cols 5-6)
@@ -56,6 +58,8 @@ var _combat_log: RichTextLabel = null
 var _kills: int = 0
 var _mark_killed: bool = false
 var _sponsor: Dictionary = {}
+var _marked_unit = null
+var _style_score: int = 0
 
 @onready var _arena: Control = $Layout/MainRow/Arena
 @onready var _player_list: VBoxContainer = $Layout/MainRow/PlayerHPPanel/PlayerList
@@ -67,6 +71,7 @@ var _sponsor: Dictionary = {}
 @onready var _btn_attack: Button = $Layout/BottomBar/HBox/BtnAttack
 @onready var _btn_shove: Button = $Layout/BottomBar/HBox/BtnShove
 @onready var _btn_charge: Button = $Layout/BottomBar/HBox/BtnCharge
+@onready var _btn_mark: Button = $Layout/BottomBar/HBox/BtnMark
 @onready var _btn_pass: Button = $Layout/BottomBar/HBox/BtnPass
 @onready var _result_overlay: PanelContainer = $ResultOverlay
 @onready var _lbl_result: Label = $ResultOverlay/VBox/LblResult
@@ -97,6 +102,7 @@ func _ready() -> void:
 	_btn_attack.pressed.connect(_on_attack)
 	_btn_shove.pressed.connect(_on_shove)
 	_btn_charge.pressed.connect(_on_charge)
+	_btn_mark.pressed.connect(_on_mark)
 	_btn_pass.pressed.connect(_on_pass)
 	_btn_return_base.pressed.connect(_on_return_to_base)
 	_update_objective_label()
@@ -246,6 +252,7 @@ func _apply_styles() -> void:
 	_style_button(_btn_attack)
 	_style_button(_btn_shove)
 	_style_charge_button()
+	_style_mark_button()
 	_style_button(_btn_pass)
 	_style_button(_btn_return_base)
 
@@ -343,6 +350,36 @@ func _style_charge_button() -> void:
 	_btn_charge.add_theme_font_size_override("font_size", 14)
 
 
+func _style_mark_button() -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.12, 0.0, 0.18, 1.0)
+	normal.border_color = COLOR_MARK
+	normal.set_border_width_all(2)
+	_btn_mark.add_theme_stylebox_override("normal", normal)
+
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color(0.22, 0.04, 0.30, 1.0)
+	hover.border_color = COLOR_MARK
+	hover.set_border_width_all(2)
+	_btn_mark.add_theme_stylebox_override("hover", hover)
+
+	var pressed := StyleBoxFlat.new()
+	pressed.bg_color = Color(0.45, 0.0, 0.60, 1.0)
+	pressed.border_color = Color(1, 1, 1, 0.8)
+	pressed.set_border_width_all(2)
+	_btn_mark.add_theme_stylebox_override("pressed", pressed)
+
+	var disabled := StyleBoxFlat.new()
+	disabled.bg_color = COLOR_ATTACK_DISABLED
+	disabled.border_color = Color(0.36, 0.36, 0.4, 1.0)
+	disabled.set_border_width_all(2)
+	_btn_mark.add_theme_stylebox_override("disabled", disabled)
+
+	_btn_mark.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	_btn_mark.add_theme_color_override("font_disabled_color", Color(0.72, 0.72, 0.76, 1.0))
+	_btn_mark.add_theme_font_size_override("font_size", 14)
+
+
 func _build_units() -> void:
 	for i in range(GameState.roster.size()):
 		var g: Dictionary = GameState.roster[i].duplicate()
@@ -361,6 +398,8 @@ func _build_units() -> void:
 		elif i == 1:
 			g["skill"] = "marksman"
 			g["attack_range"] = 2
+		elif i == 2:
+			g["skill"] = "execution_mark"
 		_units.append(g)
 
 	var enemy_count: int = randi_range(3, 5)
@@ -600,6 +639,7 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	_update_attack_button_state()
 	_update_shove_button_state()
 	_update_charge_button_state()
+	_update_mark_button_state()
 	_show_attack_range_tiles(unit)
 	_highlight_active(unit)
 	accept_event()
@@ -657,8 +697,9 @@ func _update_objective_label() -> void:
 			]
 		_:
 			var req: int = int(_sponsor.get("requirement_kills", 0))
-			_lbl_objective.text = "ROUND %d  |  %s: KILL %d  [%d/%d]" % [
-				_round, sponsor_name, req, _kills, req
+			var style_tag := "  STYLE: %d" % _style_score if _style_score > 0 else ""
+			_lbl_objective.text = "ROUND %d  |  %s: KILL %d  [%d/%d]%s" % [
+				_round, sponsor_name, req, _kills, req, style_tag
 			]
 
 
@@ -674,6 +715,9 @@ func _update_unit_info(unit: Dictionary) -> void:
 		"marksman":
 			var atk_ready := bool(unit.get("has_main_action", true))
 			skill_part = "  SKILL: MARKSMAN (RANGE 2)%s" % ("" if atk_ready else "  ACTION USED")
+		"execution_mark":
+			var bonus_ready := bool(unit.get("has_bonus_action", true))
+			skill_part = "  SKILL: MARK (%s)" % ("READY" if bonus_ready else "USED")
 	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: %s%s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
@@ -702,6 +746,7 @@ func _start_turn() -> void:
 	_update_attack_button_state()
 	_update_shove_button_state()
 	_update_charge_button_state()
+	_update_mark_button_state()
 	if is_player_turn:
 		_show_move_tiles(unit)
 		_show_attack_range_tiles(unit)
@@ -880,6 +925,70 @@ func _update_charge_button_state() -> void:
 		_btn_charge.text = "CHARGE"
 
 
+func _update_mark_button_state() -> void:
+	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+		_btn_mark.disabled = true
+		_btn_mark.visible = false
+		return
+
+	var active := _get_active_unit()
+	if active.is_empty() or active.get("skill", "") != "execution_mark":
+		_btn_mark.disabled = true
+		_btn_mark.visible = false
+		return
+
+	_btn_mark.visible = true
+	if not bool(active.get("has_bonus_action", true)):
+		_btn_mark.disabled = true
+		_btn_mark.text = "BONUS USED"
+		return
+
+	var target := _get_mark_target(active)
+	_btn_mark.disabled = target.is_empty()
+	_btn_mark.text = "MARK" if not target.is_empty() else "MARK (NO TARGET)"
+
+
+func _get_mark_target(unit: Dictionary) -> Dictionary:
+	# Returns the selected target if it's an adjacent wounded enemy, else first adjacent wounded enemy.
+	var check_units: Array = []
+	if _selected_target is Dictionary and not _selected_target.is_empty():
+		check_units = [_selected_target]
+	for u: Dictionary in _units:
+		if not check_units.has(u):
+			check_units.append(u)
+	for u: Dictionary in check_units:
+		if u["team"] != "enemy" or int(u.get("hp_current", 0)) <= 0:
+			continue
+		if _grid_distance(unit["grid_pos"], u["grid_pos"]) > 1:
+			continue
+		var hp_pct := float(u["hp_current"]) / float(u["hp_max"])
+		if hp_pct < 0.5:
+			return u
+	return {}
+
+
+func _on_mark() -> void:
+	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+		return
+
+	var unit := _get_active_unit()
+	if unit.is_empty() or unit.get("skill", "") != "execution_mark":
+		return
+	if not bool(unit.get("has_bonus_action", true)):
+		return
+
+	var target := _get_mark_target(unit)
+	if target.is_empty():
+		return
+
+	unit["has_bonus_action"] = false
+	_marked_unit = target
+	_log("[color=#cc44ff]%s[/color] MARKED [color=#ff2244]%s[/color] for execution!" % [unit["name"], target["name"]])
+	_update_unit_info(unit)
+	_update_mark_button_state()
+	_update_shove_button_state()
+
+
 func _get_charge_target(unit: Dictionary) -> Dictionary:
 	var pos: Vector2i = unit["grid_pos"]
 	var move_range: int = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
@@ -944,6 +1053,7 @@ func _on_charge() -> void:
 	_update_charge_button_state()
 	_update_attack_button_state()
 	_update_shove_button_state()
+	_update_mark_button_state()
 
 	_log("[color=#ffaa00]%s[/color] [color=#00ffcc]CHARGES![/color]" % unit["name"])
 	await _apply_attack_direct(unit, target)
@@ -956,10 +1066,11 @@ func _apply_attack_direct(attacker: Dictionary, target: Dictionary) -> void:
 	var attacker_color := "[color=#ffaa00]"
 	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
 	var flank_tag := "  [color=#ffaa00][FLANK +%d][/color]" % FLANK_BONUS if flanked else ""
-	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg%s" % [
+	var mark_tag := "  [color=#cc44ff][MARKED +%d][/color]" % MARK_BONUS if target == _marked_unit else ""
+	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg%s%s" % [
 		attacker_color, attacker["name"],
 		target_color, target["name"],
-		damage, flank_tag
+		damage, flank_tag, mark_tag
 	])
 	var killed := await _apply_damage(target, damage)
 	if killed and _check_battle_end():
@@ -998,6 +1109,7 @@ func _on_shove() -> void:
 
 	_update_unit_info(unit)
 	_update_shove_button_state()
+	_update_mark_button_state()
 
 
 func _clear_target_selection(update_button := true) -> void:
@@ -1072,6 +1184,7 @@ func _on_attack() -> void:
 	_update_unit_info(unit)
 	_update_shove_button_state()
 	_update_charge_button_state()
+	_update_mark_button_state()
 	_clear_move_tiles()
 	_clear_target_selection()
 	_apply_attack(unit, target)
@@ -1108,7 +1221,8 @@ func _get_enemy_move_destination(unit: Dictionary, target: Dictionary) -> Vector
 
 
 func _apply_damage(target: Dictionary, amount: int) -> bool:
-	target["hp_current"] = maxi(0, int(target["hp_current"]) - amount)
+	var mark_bonus := MARK_BONUS if target == _marked_unit else 0
+	target["hp_current"] = maxi(0, int(target["hp_current"]) - (amount + mark_bonus))
 	if target["hp_bar_node"] != null:
 		(target["hp_bar_node"] as ProgressBar).value = target["hp_current"]
 	_flash_hit(target)
@@ -1119,6 +1233,9 @@ func _apply_damage(target: Dictionary, amount: int) -> bool:
 			_kills += 1
 			if target.get("is_mark", false):
 				_mark_killed = true
+			if target == _marked_unit:
+				_style_score += 1
+				_log("[color=#cc44ff]EXECUTION — STYLE +1[/color]")
 			_update_objective_label()
 		await get_tree().create_timer(0.25).timeout
 		_remove_dead(target)
@@ -1143,10 +1260,11 @@ func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
 	var attacker_color := "[color=#00ffcc]" if attacker["team"] == "player" else "[color=#ff2244]"
 	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
 	var flank_tag := "  [color=#ffaa00][FLANK +%d][/color]" % FLANK_BONUS if flanked else ""
-	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg%s" % [
+	var mark_tag := "  [color=#cc44ff][MARKED +%d][/color]" % MARK_BONUS if target == _marked_unit else ""
+	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg%s%s" % [
 		attacker_color, attacker["name"],
 		target_color, target["name"],
-		damage, flank_tag
+		damage, flank_tag, mark_tag
 	])
 	var killed := await _apply_damage(target, damage)
 	if killed and _check_battle_end():
@@ -1175,6 +1293,8 @@ func _remove_dead(unit: Dictionary) -> void:
 		_selected_target = null
 	if _hovered_target == unit:
 		_hovered_target = null
+	if _marked_unit == unit:
+		_marked_unit = null
 	_units.erase(unit)
 	_initiative.erase(unit)
 	if _turn_index >= _initiative.size():
@@ -1213,6 +1333,7 @@ func _show_result(won: bool) -> void:
 	_battle_over = true
 	_btn_attack.disabled = true
 	_btn_shove.disabled = true
+	_btn_mark.disabled = true
 	_btn_pass.disabled = true
 	_clear_move_tiles()
 	_clear_attack_range_tiles()

@@ -115,6 +115,9 @@ text = "SHOVE"
 [node name="BtnCharge" type="Button" parent="Layout/BottomBar/HBox" unique_id=367384573]
 layout_mode = 2
 
+[node name="BtnMark" type="Button" parent="Layout/BottomBar/HBox" unique_id=866351693]
+layout_mode = 2
+
 [node name="BtnPass" type="Button" parent="Layout/BottomBar/HBox" unique_id=1883667611]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
