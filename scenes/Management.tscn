@@ -13,6 +13,8 @@ script = ExtResource("1_uuohh")
 
 [node name="Background" type="ColorRect" parent="." unique_id=1888912883]
 layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
 color = Color(0.039, 0.039, 0.059, 1)
 
 [node name="Scanlines" type="ColorRect" parent="." unique_id=474434506]
@@ -22,6 +24,8 @@ color = Color(0, 0, 0, 0)
 
 [node name="Layout" type="VBoxContainer" parent="." unique_id=1699654777]
 layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = 10.0
 offset_top = 10.0
 offset_right = -10.0
@@ -58,9 +62,13 @@ theme_override_colors/font_color = Color(0, 1, 0.8, 1)
 theme_override_font_sizes/font_size = 18
 text = "YOUR ROSTER"
 
-[node name="RosterList" type="VBoxContainer" parent="Layout/PanelsRow/RosterPanel" unique_id=580640511]
+[node name="RosterScroll" type="ScrollContainer" parent="Layout/PanelsRow/RosterPanel" unique_id=1365266391]
 layout_mode = 2
 size_flags_vertical = 3
+
+[node name="RosterList" type="VBoxContainer" parent="Layout/PanelsRow/RosterPanel/RosterScroll" unique_id=580640511]
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="Divider" type="VSeparator" parent="Layout/PanelsRow" unique_id=850427466]
 layout_mode = 2
@@ -75,9 +83,13 @@ theme_override_colors/font_color = Color(0, 1, 0.8, 1)
 theme_override_font_sizes/font_size = 18
 text = "AVAILABLE RECRUITS"
 
-[node name="RecruitList" type="VBoxContainer" parent="Layout/PanelsRow/RecruitsPanel" unique_id=1002461656]
+[node name="RecruitsScroll" type="ScrollContainer" parent="Layout/PanelsRow/RecruitsPanel" unique_id=1175519725]
 layout_mode = 2
 size_flags_vertical = 3
+
+[node name="RecruitList" type="VBoxContainer" parent="Layout/PanelsRow/RecruitsPanel/RecruitsScroll" unique_id=1002461656]
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="BottomBar" type="HBoxContainer" parent="Layout" unique_id=1303578230]
 layout_mode = 2

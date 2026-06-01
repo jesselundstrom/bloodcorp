@@ -13,7 +13,14 @@ const SPONSOR_PENALTY := 200
 
 const GRID_COLS := 5
 const GRID_ROWS := 4
-const UNIT_SIZE := Vector2(36, 36)
+const UNIT_SIZE := Vector2(56, 56)
+
+# Sprite sheet: 1536x1024, 3 columns x 2 rows of 512x512 frames
+const SPRITE_SHEET_PATH := "res://assets/sprites/gladiators.png"
+const SPRITE_FRAME_W := 512
+const SPRITE_FRAME_H := 512
+const SPRITE_COLS := 3
+const SPRITE_ROWS := 2
 
 const COLOR_PLAYER := Color(0.0, 1.0, 0.8, 1.0)
 const COLOR_ENEMY := Color(1.0, 0.133, 0.267, 1.0)
@@ -31,6 +38,8 @@ var _round: int = 1
 var _battle_over: bool = false
 var _selected_target = null
 var _hovered_target = null
+var _sprite_sheet: Texture2D = null
+var _combat_log: RichTextLabel = null
 
 @onready var _arena: Control = $Layout/MainRow/Arena
 @onready var _player_list: VBoxContainer = $Layout/MainRow/PlayerHPPanel/PlayerList
@@ -49,17 +58,84 @@ var _hovered_target = null
 
 
 func _ready() -> void:
+	_sprite_sheet = load(SPRITE_SHEET_PATH) as Texture2D
 	_apply_styles()
 	_build_units()
 	_sort_initiative()
 	await get_tree().process_frame
+	await get_tree().process_frame
+	_draw_arena_floor()
 	_place_units()
+	_build_combat_log()
 	_build_hp_bars()
 	_btn_attack.pressed.connect(_on_attack)
 	_btn_pass.pressed.connect(_on_pass)
 	_btn_return_base.pressed.connect(_on_return_to_base)
 	_lbl_objective.text = "%s CONTRACT: %s" % [SPONSOR_NAME, SPONSOR_REQUIREMENT.to_upper()]
 	_start_turn()
+
+
+func _draw_arena_floor() -> void:
+	# Use an ArenaFloor Control subclass drawn via shader on ArenaBg
+	var arena_size: Vector2 = _arena.size
+	var bg := $Layout/MainRow/Arena/ArenaBg as ColorRect
+
+	# Load or create the ellipse shader
+	var shader_code := """
+shader_type canvas_item;
+uniform vec4 color_outer : source_color = vec4(0.10, 0.07, 0.06, 1.0);
+uniform vec4 color_inner : source_color = vec4(0.15, 0.10, 0.08, 1.0);
+uniform float inner_radius : hint_range(0.0, 1.0) = 0.62;
+void fragment() {
+	vec2 uv = UV - vec2(0.5);
+	float aspect = 1.0 / (SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x);
+	uv.x *= aspect;
+	float d = length(uv) * 2.0;
+	if (d > 1.0) {
+		COLOR = vec4(0.039, 0.039, 0.059, 1.0);
+	} else if (d > inner_radius) {
+		COLOR = color_outer;
+	} else {
+		COLOR = color_inner;
+	}
+}
+"""
+	var shader := Shader.new()
+	shader.code = shader_code
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	bg.material = mat
+	bg.color = Color(1, 1, 1, 1)  # white so shader drives color
+	bg.visible = true
+
+
+func _build_combat_log() -> void:
+	_combat_log = RichTextLabel.new()
+	_combat_log.bbcode_enabled = true
+	_combat_log.scroll_following = true
+	_combat_log.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_combat_log.focus_mode = Control.FOCUS_NONE
+
+	var arena_size: Vector2 = _arena.size
+	_combat_log.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	_combat_log.offset_left = 8.0
+	_combat_log.offset_bottom = -8.0
+	_combat_log.offset_right = 8.0 + 280.0
+	_combat_log.offset_top = -160.0
+
+	var log_style := StyleBoxFlat.new()
+	log_style.bg_color = Color(0.0, 0.0, 0.0, 0.62)
+	log_style.set_border_width_all(1)
+	log_style.border_color = Color(1.0, 0.133, 0.267, 0.35)
+	_combat_log.add_theme_stylebox_override("normal", log_style)
+	_combat_log.add_theme_font_size_override("normal_font_size", 11)
+
+	_arena.add_child(_combat_log)
+
+
+func _log(msg: String) -> void:
+	if _combat_log:
+		_combat_log.append_text(msg + "\n")
 
 
 func _apply_styles() -> void:
@@ -78,12 +154,20 @@ func _apply_styles() -> void:
 	overlay_style.set_border_width_all(2)
 	_result_overlay.add_theme_stylebox_override("panel", overlay_style)
 
-	for lbl: Label in [$Layout/TopBar/HBox/LblRound, $Layout/TopBar/HBox/LblTurn,
-			$Layout/BottomBar/HBox/LblUnitInfo,
+	for lbl: Label in [$Layout/BottomBar/HBox/LblUnitInfo,
 			$Layout/MainRow/PlayerHPPanel/PlayerList/LblPlayerTitle,
 			$Layout/MainRow/EnemyHPPanel/EnemyList/LblEnemyTitle]:
 		lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.85, 1.0))
 		lbl.add_theme_font_size_override("font_size", 14)
+
+	# Top bar: player team name cyan, enemy team red, objective amber centre
+	_lbl_round.text = "IRON LEGION"
+	_lbl_round.add_theme_color_override("font_color", COLOR_PLAYER)
+	_lbl_round.add_theme_font_size_override("font_size", 13)
+
+	_lbl_turn.text = "CRIMSON VIPERS"
+	_lbl_turn.add_theme_color_override("font_color", COLOR_ENEMY)
+	_lbl_turn.add_theme_font_size_override("font_size", 13)
 
 	$Layout/TopBar/HBox/LblObjective.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
 	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", 14)
@@ -163,6 +247,7 @@ func _build_units() -> void:
 		g["grid_pos"] = Vector2i(i % 2, i)
 		g["hp_max"] = 20 + g["armor"] * 2
 		g["hp_current"] = g["hp_max"]
+		g["sprite_col"] = i % (SPRITE_COLS * SPRITE_ROWS)
 		g["rect_node"] = null
 		g["border_nodes"] = []
 		g["hp_bar_node"] = null
@@ -181,6 +266,7 @@ func _build_units() -> void:
 			"grid_pos": Vector2i(3 + (i % 2), i),
 			"hp_max": 0,
 			"hp_current": 0,
+			"sprite_col": i % (SPRITE_COLS * SPRITE_ROWS),
 			"rect_node": null,
 			"border_nodes": [],
 			"hp_bar_node": null,
@@ -208,20 +294,40 @@ func _iso_to_screen(grid_pos: Vector2i) -> Vector2:
 	return Vector2(x - UNIT_SIZE.x * 0.5, y - UNIT_SIZE.y * 0.5)
 
 
+func _make_unit_texture(sprite_index: int) -> AtlasTexture:
+	var col := sprite_index % SPRITE_COLS
+	var row := (sprite_index / SPRITE_COLS) % SPRITE_ROWS
+	var atlas := AtlasTexture.new()
+	atlas.atlas = _sprite_sheet
+	atlas.region = Rect2(
+		col * SPRITE_FRAME_W,
+		row * SPRITE_FRAME_H,
+		SPRITE_FRAME_W,
+		SPRITE_FRAME_H
+	)
+	return atlas
+
+
 func _place_units() -> void:
 	for unit: Dictionary in _units:
-		var rect := ColorRect.new()
-		rect.custom_minimum_size = UNIT_SIZE
-		rect.size = UNIT_SIZE
-		rect.color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
-		rect.position = _iso_to_screen(unit["grid_pos"])
-		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		rect.gui_input.connect(_on_unit_gui_input.bind(unit))
-		rect.mouse_entered.connect(_on_unit_mouse_entered.bind(unit))
-		rect.mouse_exited.connect(_on_unit_mouse_exited.bind(unit))
-		_arena.add_child(rect)
-		unit["rect_node"] = rect
-		unit["border_nodes"] = _create_unit_borders(rect)
+		var tex_rect := TextureRect.new()
+		tex_rect.custom_minimum_size = UNIT_SIZE
+		tex_rect.size = UNIT_SIZE
+		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		tex_rect.position = _iso_to_screen(unit["grid_pos"])
+		tex_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+
+		if _sprite_sheet:
+			tex_rect.texture = _make_unit_texture(unit["sprite_col"])
+
+		tex_rect.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		tex_rect.gui_input.connect(_on_unit_gui_input.bind(unit))
+		tex_rect.mouse_entered.connect(_on_unit_mouse_entered.bind(unit))
+		tex_rect.mouse_exited.connect(_on_unit_mouse_exited.bind(unit))
+		_arena.add_child(tex_rect)
+		unit["rect_node"] = tex_rect
+		unit["border_nodes"] = _create_unit_borders(tex_rect)
 
 
 func _build_hp_bars() -> void:
@@ -258,8 +364,8 @@ func _start_turn() -> void:
 
 	_clear_target_selection(false)
 	var unit: Dictionary = _initiative[_turn_index]
-	_lbl_round.text = "ROUND %d" % _round
-	_lbl_turn.text = "TURN: %s" % unit["name"]
+	_lbl_objective.text = "ROUND %d  |  %s CONTRACT: %s" % [_round, SPONSOR_NAME, SPONSOR_REQUIREMENT.to_upper()]
+	# Update team label to highlight whose turn it is
 	_lbl_unit_info.text = "%s  STR:%d  SPD:%d  ARM:%d  HP:%d/%d" % [
 		unit["name"], unit["strength"], unit["speed"],
 		unit["armor"], unit["hp_current"], unit["hp_max"]
@@ -284,7 +390,7 @@ func _highlight_active(active_unit: Dictionary) -> void:
 		_update_unit_visual(unit, active_unit)
 
 
-func _create_unit_borders(rect: ColorRect) -> Array:
+func _create_unit_borders(rect: Control) -> Array:
 	var borders: Array = []
 	for border_name in ["BorderTop", "BorderRight", "BorderBottom", "BorderLeft"]:
 		var border := ColorRect.new()
@@ -301,7 +407,7 @@ func _set_unit_border(unit: Dictionary, color: Color, width: int) -> void:
 	if borders.size() != 4:
 		return
 
-	var rect := unit["rect_node"] as ColorRect
+	var rect := unit["rect_node"] as Control
 	var w := float(width)
 	var top := borders[0] as ColorRect
 	var right := borders[1] as ColorRect
@@ -322,9 +428,11 @@ func _set_unit_border(unit: Dictionary, color: Color, width: int) -> void:
 
 
 func _update_unit_visual(unit: Dictionary, active_unit: Dictionary) -> void:
-	var rect := unit["rect_node"] as ColorRect
-	var team_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
-	rect.color = team_color.lightened(0.18) if unit == _hovered_target and _is_targetable(unit) else team_color
+	var tex_rect := unit["rect_node"] as TextureRect
+	if unit == _hovered_target and _is_targetable(unit):
+		tex_rect.modulate = Color(1.3, 1.3, 1.3, 1.0)
+	else:
+		tex_rect.modulate = Color(1, 1, 1, 1)
 
 	if unit == _selected_target and _is_valid_target(unit):
 		_set_unit_border(unit, COLOR_SELECTED_BORDER, 3)
@@ -356,7 +464,7 @@ func _update_targeting_enabled() -> void:
 	for unit: Dictionary in _units:
 		if unit["rect_node"] == null:
 			continue
-		var rect := unit["rect_node"] as ColorRect
+		var rect := unit["rect_node"] as Control
 		var targetable: bool = _is_targetable(unit)
 		rect.mouse_filter = Control.MOUSE_FILTER_STOP if targetable else Control.MOUSE_FILTER_IGNORE
 		rect.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if targetable else Control.CURSOR_ARROW
@@ -466,9 +574,19 @@ func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
 	if target["hp_bar_node"] != null:
 		(target["hp_bar_node"] as ProgressBar).value = target["hp_current"]
 
+	# Combat log entry
+	var attacker_color := "[color=#00ffcc]" if attacker["team"] == "player" else "[color=#ff2244]"
+	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
+	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg" % [
+		attacker_color, attacker["name"],
+		target_color, target["name"],
+		damage
+	])
+
 	_flash_hit(target)
 
 	if int(target["hp_current"]) <= 0:
+		_log("%s%s[/color] [color=#888888]was eliminated[/color]" % [target_color, target["name"]])
 		await get_tree().create_timer(0.25).timeout
 		_remove_dead(target)
 		if _check_battle_end():
@@ -480,16 +598,15 @@ func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
 func _flash_hit(unit: Dictionary) -> void:
 	if unit["rect_node"] == null:
 		return
-	var rect := unit["rect_node"] as ColorRect
-	var original_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
+	var tex_rect := unit["rect_node"] as TextureRect
 	var tween := create_tween()
-	tween.tween_property(rect, "color", Color(1, 1, 1, 1), 0.08)
-	tween.tween_property(rect, "color", original_color, 0.12)
+	tween.tween_property(tex_rect, "modulate", Color(1, 1, 1, 1), 0.08)
+	tween.tween_property(tex_rect, "modulate", Color(1, 1, 1, 1), 0.12)
 
 
 func _remove_dead(unit: Dictionary) -> void:
 	if unit["rect_node"] != null:
-		(unit["rect_node"] as ColorRect).queue_free()
+		(unit["rect_node"] as TextureRect).queue_free()
 		unit["rect_node"] = null
 		unit["border_nodes"] = []
 	if unit["hp_bar_node"] != null:

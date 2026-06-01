@@ -37,14 +37,14 @@ func _refresh_deploy() -> void:
 	$Layout/BottomBar/BtnDeploy.disabled = GameState.roster.is_empty()
 
 func _refresh_roster() -> void:
-	var list := $Layout/PanelsRow/RosterPanel/RosterList
+	var list := $Layout/PanelsRow/RosterPanel/RosterScroll/RosterList
 	for child in list.get_children():
 		child.queue_free()
 	for gladiator in GameState.roster:
 		list.add_child(_make_card(gladiator, true))
 
 func _refresh_recruits() -> void:
-	var list := $Layout/PanelsRow/RecruitsPanel/RecruitList
+	var list := $Layout/PanelsRow/RecruitsPanel/RecruitsScroll/RecruitList
 	for child in list.get_children():
 		child.queue_free()
 	for recruit in _recruits:
