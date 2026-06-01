@@ -154,7 +154,6 @@ func _draw_obstacles() -> void:
 
 func _draw_arena_floor() -> void:
 	# Use an ArenaFloor Control subclass drawn via shader on ArenaBg
-	var arena_size: Vector2 = _arena.size
 	var bg := $Layout/MainRow/Arena/ArenaBg as ColorRect
 
 	# Load or create the ellipse shader
@@ -193,7 +192,6 @@ func _build_combat_log() -> void:
 	_combat_log.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_combat_log.focus_mode = Control.FOCUS_NONE
 
-	var arena_size: Vector2 = _arena.size
 	_combat_log.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	_combat_log.offset_left = 8.0
 	_combat_log.offset_bottom = -8.0
@@ -205,7 +203,7 @@ func _build_combat_log() -> void:
 	log_style.set_border_width_all(1)
 	log_style.border_color = Color(1.0, 0.133, 0.267, 0.35)
 	_combat_log.add_theme_stylebox_override("normal", log_style)
-	_combat_log.add_theme_font_size_override("normal_font_size", 11)
+	_combat_log.add_theme_font_size_override("normal_font_size", UITheme.SIZE_XXS)
 
 	_arena.add_child(_combat_log)
 
@@ -235,19 +233,19 @@ func _apply_styles() -> void:
 			$Layout/MainRow/PlayerHPPanel/PlayerList/LblPlayerTitle,
 			$Layout/MainRow/EnemyHPPanel/EnemyList/LblEnemyTitle]:
 		lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.85, 1.0))
-		lbl.add_theme_font_size_override("font_size", 14)
+		lbl.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 	# Top bar: player team name cyan, enemy team red, objective amber centre
 	_lbl_round.text = "IRON LEGION"
 	_lbl_round.add_theme_color_override("font_color", COLOR_PLAYER)
-	_lbl_round.add_theme_font_size_override("font_size", 13)
+	_lbl_round.add_theme_font_size_override("font_size", UITheme.SIZE_XS)
 
 	_lbl_turn.text = "CRIMSON VIPERS"
 	_lbl_turn.add_theme_color_override("font_color", COLOR_ENEMY)
-	_lbl_turn.add_theme_font_size_override("font_size", 13)
+	_lbl_turn.add_theme_font_size_override("font_size", UITheme.SIZE_XS)
 
 	$Layout/TopBar/HBox/LblObjective.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
-	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", 14)
+	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 	_style_button(_btn_attack)
 	_style_button(_btn_shove)
@@ -262,11 +260,11 @@ func _apply_styles() -> void:
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_btn_return_base.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
-	_lbl_result.add_theme_font_size_override("font_size", 48)
+	_lbl_result.add_theme_font_size_override("font_size", UITheme.SIZE_HERO)
 	_lbl_result.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	_lbl_contract.add_theme_font_size_override("font_size", 24)
+	_lbl_contract.add_theme_font_size_override("font_size", UITheme.SIZE_XL)
 	_lbl_contract.add_theme_color_override("font_color", Color(0.9, 0.9, 0.95, 1.0))
-	_lbl_reward.add_theme_font_size_override("font_size", 22)
+	_lbl_reward.add_theme_font_size_override("font_size", UITheme.SIZE_LG)
 	_lbl_reward.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
 
 
@@ -291,7 +289,7 @@ func _style_button(btn: Button) -> void:
 
 	btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	btn.add_theme_color_override("font_disabled_color", Color(0.72, 0.72, 0.76, 1.0))
-	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 
 func _style_attack_button(has_target: bool) -> void:
@@ -347,7 +345,7 @@ func _style_charge_button() -> void:
 
 	_btn_charge.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	_btn_charge.add_theme_color_override("font_disabled_color", Color(0.72, 0.72, 0.76, 1.0))
-	_btn_charge.add_theme_font_size_override("font_size", 14)
+	_btn_charge.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 
 func _style_mark_button() -> void:
@@ -377,7 +375,7 @@ func _style_mark_button() -> void:
 
 	_btn_mark.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	_btn_mark.add_theme_color_override("font_disabled_color", Color(0.72, 0.72, 0.76, 1.0))
-	_btn_mark.add_theme_font_size_override("font_size", 14)
+	_btn_mark.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 
 func _build_units() -> void:
@@ -385,7 +383,7 @@ func _build_units() -> void:
 		var g: Dictionary = GameState.roster[i].duplicate()
 		g["team"] = "player"
 		g["is_mark"] = false
-		g["grid_pos"] = Vector2i(i % 2, int(i / 2))
+		g["grid_pos"] = Vector2i(i % 2, floori(i / 2.0))
 		g["hp_max"] = 20 + g["armor"] * 2
 		g["hp_current"] = g["hp_max"]
 		g["sprite_col"] = i % (SPRITE_COLS * SPRITE_ROWS)
@@ -417,7 +415,7 @@ func _build_units() -> void:
 			"armor": randi_range(1, 10),
 			"team": "enemy",
 			"is_mark": mark_name != "" and name_pool[i] == mark_name,
-			"grid_pos": Vector2i(GRID_COLS - 1 - (i % 2), int(i / 2)),
+			"grid_pos": Vector2i(GRID_COLS - 1 - (i % 2), floori(i / 2.0)),
 			"hp_max": 0,
 			"hp_current": 0,
 			"sprite_col": i % (SPRITE_COLS * SPRITE_ROWS),
@@ -529,7 +527,7 @@ func _move_unit_to(unit: Dictionary, grid_pos: Vector2i) -> void:
 
 func _make_unit_texture(sprite_index: int) -> AtlasTexture:
 	var col := sprite_index % SPRITE_COLS
-	var row := (sprite_index / SPRITE_COLS) % SPRITE_ROWS
+	var row := floori(sprite_index / float(SPRITE_COLS)) % SPRITE_ROWS
 	var atlas := AtlasTexture.new()
 	atlas.atlas = _sprite_sheet
 	atlas.region = Rect2(
@@ -660,7 +658,7 @@ func _build_hp_bars() -> void:
 
 		var name_lbl := Label.new()
 		name_lbl.text = unit["name"]
-		name_lbl.add_theme_font_size_override("font_size", 11)
+		name_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_XXS)
 		var name_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
 		name_lbl.add_theme_color_override("font_color", name_color)
 		container.add_child(name_lbl)
