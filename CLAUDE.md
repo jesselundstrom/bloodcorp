@@ -31,6 +31,7 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 ### Concept
 - Player manages a gladiator team sponsored by megacorporations
 - Isometric 2D pixel art battles (team vs team, simultaneous)
+- Tactical arena combat should evolve toward compact Arena 8-style fights with limited cRPG-style movement, action/bonus action choices, character-specific skills, and equipment-driven abilities
 - Corp sponsors set match requirements (kill count, style, specific targets)
 - Gladiators can have cybernetic augmentations
 
@@ -56,6 +57,8 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 - `assets/fonts/` — Pixel fonts (not yet populated)
 
 **Task backlog:** see [docs/TASKS.md](docs/TASKS.md)
+
+**Combat design direction:** see [docs/COMBAT_DESIGN.md](docs/COMBAT_DESIGN.md)
 
 ### Development Style
 - Use Godot MCP tools to create nodes and scenes in the live editor

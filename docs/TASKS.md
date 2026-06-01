@@ -8,21 +8,27 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 
 1. **Sponsor system** — Let player pick a sponsor before battle. Display contract requirements (kill count, style rating, target priority). Track fulfilment during battle. Apply bonus/penalty on top of base reward. `GameState.active_sponsor` is already stubbed.
 
-3. **Augmentation system** — Data model for cyberware slots, a shop UI tab in Management, stat modifiers (e.g. +STR, +SPD) applied when Battle builds unit stats. Core to the cyberpunk identity of the game.
+2. **Tactical arena combat direction** — Evolve battles toward an Arena 8-style tactical combat format: compact arena fights with limited cRPG-style movement, positioning choices, and readable turn flow inspired by Baldur's Gate 3. See `docs/COMBAT_DESIGN.md`.
 
-4. **Gladiator pixel sprites** — Replace the flat ColorRect squares in Battle with actual sprite nodes. `assets/sprites/` is empty. Start with placeholder 16×16 or 32×32 art; define the Sprite2D/AnimatedSprite2D pattern for future animation.
+3. **Action economy** — Add a combat action model with one main action and one bonus action per active gladiator. Attacks, movement, skills, item use, and defensive choices should consume the correct action type.
 
-5. **Pixel font** — Import a pixel/bitmap font and apply it globally. `assets/fonts/` is empty. Affects all labels across Menu, Management, and Battle.
+4. **Character-specific skills** — Give gladiators build-defining active skills, passive traits, or cyberware abilities. Skills should be data-driven enough to show names, descriptions, costs, cooldowns, and valid targets in the battle UI.
 
-6. **Game-over / campaign structure** — Lose condition when credits drop to 0 (or below hire cost). Day/season loop with escalating enemy stat scaling. A "next contract" flow after each win.
+5. **Augmentation system** — Data model for cyberware slots, a shop UI tab in Management, stat modifiers (e.g. +STR, +SPD) applied when Battle builds unit stats. Core to the cyberpunk identity of the game.
 
-7. **Battle polish** — Smarter unit placement (spread across grid, not hard-coded corners), at least one special ability per unit type, a crowd-style score shown to sponsor, basic terrain/obstacle tiles.
+6. **Gladiator pixel sprites** — Replace the flat ColorRect squares in Battle with actual sprite nodes. `assets/sprites/` is empty. Start with placeholder 16×16 or 32×32 art; define the Sprite2D/AnimatedSprite2D pattern for future animation.
 
-8. **Audio** — AudioStreamPlayer manager autoload, looping menu music, attack/death SFX in Battle. `assets/audio/` folder TBD.
+7. **Pixel font** — Import a pixel/bitmap font and apply it globally. `assets/fonts/` is empty. Affects all labels across Menu, Management, and Battle.
 
-9. **Facility upgrades** — Spend credits between battles on training room (+stat cap), med bay (heal injured), comms suite (better recruits). New UI section in Management.
+8. **Game-over / campaign structure** — Lose condition when credits drop to 0 (or below hire cost). Day/season loop with escalating enemy stat scaling. A "next contract" flow after each win.
 
-10. **Equipment / weapon shop** — Gear items with stat modifiers available in Management. Equip slots per gladiator. Shown on gladiator cards.
+9. **Battle polish** — Smarter unit placement (spread across grid, not hard-coded corners), at least one special ability per unit type, a crowd-style score shown to sponsor, basic terrain/obstacle tiles.
+
+10. **Audio** — AudioStreamPlayer manager autoload, looping menu music, attack/death SFX in Battle. `assets/audio/` folder TBD.
+
+11. **Facility upgrades** — Spend credits between battles on training room (+stat cap), med bay (heal injured), comms suite (better recruits). New UI section in Management.
+
+12. **Equipment / weapon shop** — Gear items with stat modifiers, action options, and passive effects available in Management. Equip slots per gladiator. Shown on gladiator cards and surfaced during battle when gear grants usable skills.
 
 ---
 
