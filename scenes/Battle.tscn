@@ -113,10 +113,8 @@ text = "PASS"
 [node name="ResultOverlay" type="PanelContainer" parent="." unique_id=56678262]
 visible = false
 layout_mode = 0
-anchor_left = 0.25
-anchor_top = 0.25
-anchor_right = 0.75
-anchor_bottom = 0.75
+anchor_right = 1.0
+anchor_bottom = 1.0
 
 [node name="VBox" type="VBoxContainer" parent="ResultOverlay" unique_id=1060506818]
 layout_mode = 2
@@ -126,14 +124,23 @@ alignment = 1
 
 [node name="LblResult" type="Label" parent="ResultOverlay/VBox" unique_id=581361203]
 layout_mode = 2
+size_flags_horizontal = 3
 text = "VICTORY"
+horizontal_alignment = 1
+
+[node name="LblContract" type="Label" parent="ResultOverlay/VBox" unique_id=1428372529]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "CONTRACT FULFILLED"
 horizontal_alignment = 1
 
 [node name="LblReward" type="Label" parent="ResultOverlay/VBox" unique_id=1948078061]
 layout_mode = 2
-text = "+500 CR"
+size_flags_horizontal = 3
+text = "+500 CREDITS"
 horizontal_alignment = 1
 
-[node name="BtnContinue" type="Button" parent="ResultOverlay/VBox" unique_id=9569630]
+[node name="BtnReturnBase" type="Button" parent="ResultOverlay/VBox" unique_id=9569630]
 layout_mode = 2
-text = "CONTINUE"
+size_flags_horizontal = 4
+text = "RETURN TO BASE"

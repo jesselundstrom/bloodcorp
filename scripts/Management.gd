@@ -9,7 +9,6 @@ const NAMES := [
 var _recruits: Array = []
 
 func _ready() -> void:
-	GameState.reset()
 	_recruits = _generate_recruits(4)
 	$Layout/BottomBar/BtnDeploy.pressed.connect(_on_deploy)
 	_refresh_credits()
@@ -110,7 +109,7 @@ func _make_card(data: Dictionary, is_roster: bool) -> PanelContainer:
 		btn.pressed.connect(_on_fire.bind(data))
 	else:
 		btn.text = "HIRE"
-		var can_hire: bool = GameState.credits >= data["cost"] and GameState.roster.size() < GameState.MAX_ROSTER_SIZE
+		var can_hire := GameState.credits >= int(data["cost"]) and GameState.roster.size() < GameState.MAX_ROSTER_SIZE
 		btn.disabled = not can_hire
 		btn.pressed.connect(_on_hire.bind(data))
 

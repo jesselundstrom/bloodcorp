@@ -6,8 +6,10 @@ const ENEMY_NAMES := [
 	"KAEL", "RAZE", "FLUX", "TOMB", "VEX", "GORN", "BLUD", "KRIX"
 ]
 
+const SPONSOR_NAME := "OMNICORP"
+const SPONSOR_REQUIREMENT := "eliminate all enemies"
 const SPONSOR_REWARD := 500
-const DEFEAT_PENALTY := 200
+const SPONSOR_PENALTY := 200
 
 const GRID_COLS := 5
 const GRID_ROWS := 4
@@ -34,8 +36,9 @@ var _battle_over: bool = false
 @onready var _btn_pass: Button = $Layout/BottomBar/HBox/BtnPass
 @onready var _result_overlay: PanelContainer = $ResultOverlay
 @onready var _lbl_result: Label = $ResultOverlay/VBox/LblResult
+@onready var _lbl_contract: Label = $ResultOverlay/VBox/LblContract
 @onready var _lbl_reward: Label = $ResultOverlay/VBox/LblReward
-@onready var _btn_continue: Button = $ResultOverlay/VBox/BtnContinue
+@onready var _btn_return_base: Button = $ResultOverlay/VBox/BtnReturnBase
 
 
 func _ready() -> void:
@@ -47,8 +50,8 @@ func _ready() -> void:
 	_build_hp_bars()
 	_btn_attack.pressed.connect(_on_attack)
 	_btn_pass.pressed.connect(_on_pass)
-	_btn_continue.pressed.connect(_on_continue)
-	_lbl_objective.text = "ELIMINATE ALL ENEMIES"
+	_btn_return_base.pressed.connect(_on_return_to_base)
+	_lbl_objective.text = "%s CONTRACT: %s" % [SPONSOR_NAME, SPONSOR_REQUIREMENT.to_upper()]
 	_start_turn()
 
 
@@ -63,10 +66,10 @@ func _apply_styles() -> void:
 		panel.add_theme_stylebox_override("panel", panel_style.duplicate())
 
 	var overlay_style := StyleBoxFlat.new()
-	overlay_style.bg_color = Color(0.07, 0.05, 0.12, 0.95)
-	overlay_style.border_color = Color(1.0, 0.133, 0.267, 1.0)
+	overlay_style.bg_color = Color(0.0, 0.0, 0.0, 0.78)
+	overlay_style.border_color = Color(0.0, 1.0, 0.8, 0.75)
 	overlay_style.set_border_width_all(2)
-	$ResultOverlay.add_theme_stylebox_override("panel", overlay_style)
+	_result_overlay.add_theme_stylebox_override("panel", overlay_style)
 
 	for lbl: Label in [$Layout/TopBar/HBox/LblRound, $Layout/TopBar/HBox/LblTurn,
 			$Layout/BottomBar/HBox/LblUnitInfo,
@@ -78,14 +81,22 @@ func _apply_styles() -> void:
 	$Layout/TopBar/HBox/LblObjective.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
 	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", 14)
 
-	_style_button($Layout/BottomBar/HBox/BtnAttack)
-	_style_button($Layout/BottomBar/HBox/BtnPass)
-	_style_button($ResultOverlay/VBox/BtnContinue)
+	_style_button(_btn_attack)
+	_style_button(_btn_pass)
+	_style_button(_btn_return_base)
 
-	$ResultOverlay/VBox/LblResult.add_theme_font_size_override("font_size", 40)
-	$ResultOverlay/VBox/LblResult.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	$ResultOverlay/VBox/LblReward.add_theme_font_size_override("font_size", 20)
-	$ResultOverlay/VBox/LblReward.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
+	$ResultOverlay/VBox.add_theme_constant_override("separation", 14)
+	for lbl: Label in [_lbl_result, _lbl_contract, _lbl_reward]:
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_btn_return_base.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+
+	_lbl_result.add_theme_font_size_override("font_size", 48)
+	_lbl_result.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	_lbl_contract.add_theme_font_size_override("font_size", 24)
+	_lbl_contract.add_theme_color_override("font_color", Color(0.9, 0.9, 0.95, 1.0))
+	_lbl_reward.add_theme_font_size_override("font_size", 22)
+	_lbl_reward.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
 
 
 func _style_button(btn: Button) -> void:
@@ -208,7 +219,7 @@ func _start_turn() -> void:
 
 	_highlight_active(unit)
 
-	var is_player_turn: bool = unit["team"] == "player"
+	var is_player_turn := str(unit["team"]) == "player"
 	_btn_attack.disabled = not is_player_turn
 	_btn_pass.disabled = not is_player_turn
 
@@ -221,7 +232,7 @@ func _highlight_active(active_unit: Dictionary) -> void:
 	for unit: Dictionary in _initiative:
 		if unit["rect_node"] == null:
 			continue
-		var rect: ColorRect = unit["rect_node"]
+		var rect := unit["rect_node"] as ColorRect
 		if unit == active_unit:
 			var style := StyleBoxFlat.new()
 			var team_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
@@ -300,7 +311,7 @@ func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
 func _flash_hit(unit: Dictionary) -> void:
 	if unit["rect_node"] == null:
 		return
-	var rect: ColorRect = unit["rect_node"]
+	var rect := unit["rect_node"] as ColorRect
 	var original_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
 	var tween := create_tween()
 	tween.tween_property(rect, "color", Color(1, 1, 1, 1), 0.08)
@@ -355,14 +366,16 @@ func _show_result(won: bool) -> void:
 	if won:
 		_lbl_result.text = "VICTORY"
 		_lbl_result.add_theme_color_override("font_color", COLOR_PLAYER)
+		_lbl_contract.text = "CONTRACT FULFILLED"
 		GameState.credits += SPONSOR_REWARD
-		_lbl_reward.text = "+%d CR" % SPONSOR_REWARD
+		_lbl_reward.text = "+%d CREDITS" % SPONSOR_REWARD
 	else:
 		_lbl_result.text = "DEFEAT"
 		_lbl_result.add_theme_color_override("font_color", COLOR_ENEMY)
-		GameState.credits = maxi(0, GameState.credits - DEFEAT_PENALTY)
-		_lbl_reward.text = "-%d CR" % DEFEAT_PENALTY
+		_lbl_contract.text = "CONTRACT FAILED"
+		GameState.credits -= SPONSOR_PENALTY
+		_lbl_reward.text = "-%d CREDITS" % SPONSOR_PENALTY
 
 
-func _on_continue() -> void:
+func _on_return_to_base() -> void:
 	get_tree().change_scene_to_file("res://scenes/Management.tscn")
