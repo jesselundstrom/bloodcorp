@@ -107,15 +107,14 @@ custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "ATTACK"
 
-[node name="BtnShove" type="Button" parent="Layout/BottomBar/HBox" unique_id=2047391823]
+[node name="BtnBonus" type="Button" parent="Layout/BottomBar/HBox" unique_id=2047391823]
 custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 text = "SHOVE"
 
-[node name="BtnCharge" type="Button" parent="Layout/BottomBar/HBox" unique_id=367384573]
-layout_mode = 2
+[node name="BonusPopup" type="PopupMenu" parent="Layout/BottomBar/HBox/BtnBonus" unique_id=661026432]
 
-[node name="BtnMark" type="Button" parent="Layout/BottomBar/HBox" unique_id=866351693]
+[node name="BtnCharge" type="Button" parent="Layout/BottomBar/HBox" unique_id=367384573]
 layout_mode = 2
 
 [node name="BtnPass" type="Button" parent="Layout/BottomBar/HBox" unique_id=1883667611]

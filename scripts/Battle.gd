@@ -37,6 +37,7 @@ const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.85)
 const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
 const COLOR_MARK := Color(0.8, 0.0, 1.0, 1.0)
 const PROFICIENCY_BONUS := 2  # recruit tier; +3 veteran / +4 champion once rank field lands
+const _DEFAULT_SKILL_BY_INDEX: Array = ["brutal_charge", "marksman", "execution_mark"]
 const MELEE_DAMAGE_DIE := 6   # 1d6 placeholder until weapon system
 const RANGED_DAMAGE_DIE := 8  # 1d8 placeholder for Marksman
 
@@ -70,9 +71,9 @@ var _style_score: int = 0
 @onready var _lbl_turn: Label = $Layout/TopBar/HBox/LblTurn
 @onready var _lbl_unit_info: Label = $Layout/BottomBar/HBox/LblUnitInfo
 @onready var _btn_attack: Button = $Layout/BottomBar/HBox/BtnAttack
-@onready var _btn_shove: Button = $Layout/BottomBar/HBox/BtnShove
+@onready var _btn_bonus: Button = $Layout/BottomBar/HBox/BtnBonus
+@onready var _bonus_popup: PopupMenu = $Layout/BottomBar/HBox/BtnBonus/BonusPopup
 @onready var _btn_charge: Button = $Layout/BottomBar/HBox/BtnCharge
-@onready var _btn_mark: Button = $Layout/BottomBar/HBox/BtnMark
 @onready var _btn_pass: Button = $Layout/BottomBar/HBox/BtnPass
 @onready var _result_overlay: PanelContainer = $ResultOverlay
 @onready var _lbl_result: Label = $ResultOverlay/VBox/LblResult
@@ -101,9 +102,9 @@ func _ready() -> void:
 	_build_combat_log()
 	_build_hp_bars()
 	_btn_attack.pressed.connect(_on_attack)
-	_btn_shove.pressed.connect(_on_shove)
+	_btn_bonus.pressed.connect(_on_bonus_pressed)
+	_bonus_popup.id_pressed.connect(_on_bonus_popup_id_pressed)
 	_btn_charge.pressed.connect(_on_charge)
-	_btn_mark.pressed.connect(_on_mark)
 	_btn_pass.pressed.connect(_on_pass)
 	_btn_return_base.pressed.connect(_on_return_to_base)
 	_update_objective_label()
@@ -249,9 +250,8 @@ func _apply_styles() -> void:
 	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 	_style_button(_btn_attack)
-	_style_button(_btn_shove)
+	_style_button(_btn_bonus)
 	_style_charge_button()
-	_style_mark_button()
 	_style_button(_btn_pass)
 	_style_button(_btn_return_base)
 
@@ -349,35 +349,6 @@ func _style_charge_button() -> void:
 	_btn_charge.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 
-func _style_mark_button() -> void:
-	var normal := StyleBoxFlat.new()
-	normal.bg_color = Color(0.12, 0.0, 0.18, 1.0)
-	normal.border_color = COLOR_MARK
-	normal.set_border_width_all(2)
-	_btn_mark.add_theme_stylebox_override("normal", normal)
-
-	var hover := StyleBoxFlat.new()
-	hover.bg_color = Color(0.22, 0.04, 0.30, 1.0)
-	hover.border_color = COLOR_MARK
-	hover.set_border_width_all(2)
-	_btn_mark.add_theme_stylebox_override("hover", hover)
-
-	var pressed := StyleBoxFlat.new()
-	pressed.bg_color = Color(0.45, 0.0, 0.60, 1.0)
-	pressed.border_color = Color(1, 1, 1, 0.8)
-	pressed.set_border_width_all(2)
-	_btn_mark.add_theme_stylebox_override("pressed", pressed)
-
-	var disabled := StyleBoxFlat.new()
-	disabled.bg_color = COLOR_ATTACK_DISABLED
-	disabled.border_color = Color(0.36, 0.36, 0.4, 1.0)
-	disabled.set_border_width_all(2)
-	_btn_mark.add_theme_stylebox_override("disabled", disabled)
-
-	_btn_mark.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	_btn_mark.add_theme_color_override("font_disabled_color", Color(0.72, 0.72, 0.76, 1.0))
-	_btn_mark.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
-
 
 func _stat_mod(score: int) -> int:
 	return floori((score - 10) / 2.0)
@@ -454,14 +425,15 @@ func _build_units() -> void:
 		g["rect_node"] = null
 		g["border_nodes"] = []
 		g["hp_bar_node"] = null
+		var skill_key: String = String(g.get("skill", ""))
+		if skill_key == "" and i < _DEFAULT_SKILL_BY_INDEX.size():
+			skill_key = _DEFAULT_SKILL_BY_INDEX[i]
+		g["skill"] = skill_key
+		if skill_key != "" and SkillData.SKILLS.has(skill_key):
+			var sk: Dictionary = SkillData.SKILLS[skill_key]
+			if int(sk.get("attack_range", 1)) > 1:
+				g["attack_range"] = int(sk["attack_range"])
 		_add_combat_state(g)
-		if i == 0:
-			g["skill"] = "brutal_charge"
-		elif i == 1:
-			g["skill"] = "marksman"
-			g["attack_range"] = 2
-		elif i == 2:
-			g["skill"] = "execution_mark"
 		_units.append(g)
 
 	var enemy_count: int = randi_range(3, 5)
@@ -708,9 +680,8 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	_update_unit_info(unit)
 	_update_targeting_enabled()
 	_update_attack_button_state()
-	_update_shove_button_state()
+	_update_bonus_button_state()
 	_update_charge_button_state()
-	_update_mark_button_state()
 	_show_attack_range_tiles(unit)
 	_highlight_active(unit)
 	accept_event()
@@ -777,18 +748,22 @@ func _update_objective_label() -> void:
 func _update_unit_info(unit: Dictionary) -> void:
 	var move_state := "USED" if bool(unit.get("has_moved", false)) else "READY"
 	var action_state := "READY" if bool(unit.get("has_main_action", true)) else "USED"
-	var bonus_state := "SHOVE" if bool(unit.get("has_bonus_action", true)) else "USED"
+	var bonus_state := "BONUS" if bool(unit.get("has_bonus_action", true)) else "USED"
 	var skill_part := ""
-	match unit.get("skill", ""):
-		"brutal_charge":
-			var charge_ready := bool(unit.get("has_main_action", true)) and not bool(unit.get("has_moved", false))
-			skill_part = "  SKILL: %s" % ("CHARGE" if charge_ready else "USED")
-		"marksman":
-			var atk_ready := bool(unit.get("has_main_action", true))
-			skill_part = "  SKILL: MARKSMAN (RANGE 2)%s" % ("" if atk_ready else "  ACTION USED")
-		"execution_mark":
-			var bonus_ready := bool(unit.get("has_bonus_action", true))
-			skill_part = "  SKILL: MARK (%s)" % ("READY" if bonus_ready else "USED")
+	var skill_key := String(unit.get("skill", ""))
+	if skill_key != "" and SkillData.SKILLS.has(skill_key):
+		var sk: Dictionary = SkillData.SKILLS[skill_key]
+		var display: String = sk.get("display_name", skill_key.to_upper())
+		match sk.get("action_cost", ""):
+			"main":
+				var ready := bool(unit.get("has_main_action", true)) and not bool(unit.get("has_moved", false))
+				skill_part = "  SKILL: %s" % (display.to_upper() if ready else "USED")
+			"passive":
+				var atk_ready := bool(unit.get("has_main_action", true))
+				skill_part = "  SKILL: %s%s" % [display.to_upper(), "" if atk_ready else "  ACTION USED"]
+			"bonus":
+				var bonus_ready := bool(unit.get("has_bonus_action", true))
+				skill_part = "  SKILL: %s (%s)" % [display.to_upper(), "READY" if bonus_ready else "USED"]
 	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: %s%s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
@@ -815,9 +790,8 @@ func _start_turn() -> void:
 	_btn_pass.disabled = not is_player_turn
 	_update_targeting_enabled()
 	_update_attack_button_state()
-	_update_shove_button_state()
+	_update_bonus_button_state()
 	_update_charge_button_state()
-	_update_mark_button_state()
 	if is_player_turn:
 		_show_move_tiles(unit)
 		_show_attack_range_tiles(unit)
@@ -953,21 +927,88 @@ func _get_adjacent_enemy(unit: Dictionary) -> Dictionary:
 	return {}
 
 
-func _update_shove_button_state() -> void:
+func _available_bonus_actions(unit: Dictionary) -> Array:
+	var out: Array = []
+	var skill := String(unit.get("skill", ""))
+	if skill != "" and SkillData.SKILLS.get(skill, {}).get("action_cost", "") == "bonus":
+		out.append(skill)
+	out.append("shove")
+	return out
+
+
+func _update_bonus_button_state() -> void:
 	if _battle_over or _initiative.is_empty() or not _is_player_turn():
-		_btn_shove.disabled = true
-		_btn_shove.text = "SHOVE"
+		_btn_bonus.disabled = true
+		_btn_bonus.text = "BONUS"
 		return
 
 	var active := _get_active_unit()
 	if active.is_empty() or not bool(active.get("has_bonus_action", true)):
-		_btn_shove.disabled = true
-		_btn_shove.text = "BONUS USED"
+		_btn_bonus.disabled = true
+		_btn_bonus.text = "BONUS USED"
 		return
 
-	var has_adjacent := not _get_adjacent_enemy(active).is_empty()
-	_btn_shove.disabled = not has_adjacent
-	_btn_shove.text = "SHOVE" if has_adjacent else "SHOVE (NO TARGET)"
+	var actions := _available_bonus_actions(active)
+	var any_usable := false
+	for action_key: String in actions:
+		if action_key == "shove":
+			if not _get_adjacent_enemy(active).is_empty():
+				any_usable = true
+				break
+		elif action_key == "execution_mark":
+			if not _get_mark_target(active).is_empty():
+				any_usable = true
+				break
+		else:
+			any_usable = true
+			break
+	_btn_bonus.disabled = not any_usable
+	_btn_bonus.text = "BONUS" if any_usable else "BONUS (NO TARGET)"
+
+
+func _on_bonus_pressed() -> void:
+	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+		return
+	var active := _get_active_unit()
+	if active.is_empty() or not bool(active.get("has_bonus_action", true)):
+		return
+
+	var actions := _available_bonus_actions(active)
+	_bonus_popup.clear()
+	for i in range(actions.size()):
+		var action_key: String = actions[i]
+		var label: String
+		if action_key == "shove":
+			label = SkillData.SHOVE["display_name"]
+			var has_target := not _get_adjacent_enemy(active).is_empty()
+			if not has_target:
+				label += " (NO TARGET)"
+		else:
+			label = SkillData.SKILLS.get(action_key, {}).get("display_name", action_key.to_upper())
+			if action_key == "execution_mark":
+				var has_target := not _get_mark_target(active).is_empty()
+				if not has_target:
+					label += " (NO TARGET)"
+		_bonus_popup.add_item(label, i)
+	_bonus_popup.popup(Rect2i(
+		int(_btn_bonus.global_position.x),
+		int(_btn_bonus.global_position.y) - _bonus_popup.get_minimum_size().y - 4,
+		int(_btn_bonus.size.x), 0
+	))
+
+
+func _on_bonus_popup_id_pressed(id: int) -> void:
+	var active := _get_active_unit()
+	if active.is_empty():
+		return
+	var actions := _available_bonus_actions(active)
+	if id < 0 or id >= actions.size():
+		return
+	match actions[id]:
+		"shove":
+			_on_shove()
+		"execution_mark":
+			_on_mark()
 
 
 func _update_charge_button_state() -> void:
@@ -995,28 +1036,6 @@ func _update_charge_button_state() -> void:
 	else:
 		_btn_charge.text = "CHARGE"
 
-
-func _update_mark_button_state() -> void:
-	if _battle_over or _initiative.is_empty() or not _is_player_turn():
-		_btn_mark.disabled = true
-		_btn_mark.visible = false
-		return
-
-	var active := _get_active_unit()
-	if active.is_empty() or active.get("skill", "") != "execution_mark":
-		_btn_mark.disabled = true
-		_btn_mark.visible = false
-		return
-
-	_btn_mark.visible = true
-	if not bool(active.get("has_bonus_action", true)):
-		_btn_mark.disabled = true
-		_btn_mark.text = "BONUS USED"
-		return
-
-	var target := _get_mark_target(active)
-	_btn_mark.disabled = target.is_empty()
-	_btn_mark.text = "MARK" if not target.is_empty() else "MARK (NO TARGET)"
 
 
 func _get_mark_target(unit: Dictionary) -> Dictionary:
@@ -1056,8 +1075,7 @@ func _on_mark() -> void:
 	_marked_unit = target
 	_log("[color=#cc44ff]%s[/color] MARKED [color=#ff2244]%s[/color] for execution!" % [unit["name"], target["name"]])
 	_update_unit_info(unit)
-	_update_mark_button_state()
-	_update_shove_button_state()
+	_update_bonus_button_state()
 
 
 func _get_charge_target(unit: Dictionary) -> Dictionary:
@@ -1123,8 +1141,7 @@ func _on_charge() -> void:
 	_update_unit_info(unit)
 	_update_charge_button_state()
 	_update_attack_button_state()
-	_update_shove_button_state()
-	_update_mark_button_state()
+	_update_bonus_button_state()
 
 	_log("[color=#ffaa00]%s[/color] [color=#00ffcc]CHARGES![/color]" % unit["name"])
 	await _apply_attack_direct(unit, target)
@@ -1167,8 +1184,7 @@ func _on_shove() -> void:
 			return
 
 	_update_unit_info(unit)
-	_update_shove_button_state()
-	_update_mark_button_state()
+	_update_bonus_button_state()
 
 
 func _clear_target_selection(update_button := true) -> void:
@@ -1241,9 +1257,8 @@ func _on_attack() -> void:
 	var target: Dictionary = _selected_target
 	unit["has_main_action"] = false
 	_update_unit_info(unit)
-	_update_shove_button_state()
+	_update_bonus_button_state()
 	_update_charge_button_state()
-	_update_mark_button_state()
 	_clear_move_tiles()
 	_clear_target_selection()
 	_apply_attack(unit, target)
@@ -1380,8 +1395,7 @@ func _check_battle_end() -> bool:
 func _show_result(won: bool) -> void:
 	_battle_over = true
 	_btn_attack.disabled = true
-	_btn_shove.disabled = true
-	_btn_mark.disabled = true
+	_btn_bonus.disabled = true
 	_btn_pass.disabled = true
 	_clear_move_tiles()
 	_clear_attack_range_tiles()

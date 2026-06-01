@@ -25,7 +25,7 @@ The tactical combat foundation is live in `scripts/Battle.gd`:
 - **Attack resolution:** `1d20 + attack_bonus vs target.defense_class`. Miss = no damage. Hit = `weapon_die + stat_mod` (min 1). Crit (nat 20) = double dice. Proficiency +2 (recruit; +3 veteran / +4 champion deferred to rank system). Melee: 1d6 + STR_mod. Ranged (Marksman): 1d8 + DEX_mod. Flanking or Execution Mark → advantage (2d20 take high, binary — does not stack).
 - **Current HP formula:** `max_hp = 8 + CON_mod`.
 
-Three character skills are live: Brutal Charge (main action), Marksman (passive range upgrade), Execution Mark (bonus action). Assignment is currently hardcoded by roster index — a data-driven refactor is the active task (see TASKS.md).
+Three character skills are live: Brutal Charge (main action), Marksman (passive range upgrade), Execution Mark (bonus action). Skills are defined in `scripts/SkillData.gd` and assigned in `_build_units()` via a fallback index array — forward-compatible with a per-gladiator `skill` field in GameState once the roster system expands. Bonus actions (Shove + skill bonus actions) are surfaced via a single BtnBonus button that opens a PopupMenu.
 
 ## Turn Structure
 
@@ -36,7 +36,7 @@ Each active gladiator supports:
 - **Bonus action:** Use a smaller skill, quick item, shove, stance swap, cyberware trigger, or weapon-specific trick.
 - **End turn:** Commit the chosen actions and move initiative forward.
 
-The speed-sorted initiative system is the live foundation. Bonus action selection UI is being unified as part of the skills refactor.
+The speed-sorted initiative system is the live foundation. Bonus action selection UI uses a single BtnBonus button that opens a PopupMenu listing available bonus actions (skill-specific and Shove), driven by `_available_bonus_actions()`.
 
 ## D&D-Style Hit/Miss/Damage Resolution *(implemented)*
 
@@ -130,8 +130,7 @@ Management should show what a gladiator can do before deployment. Battle surface
 
 ## Next Implementation Targets
 
-1. **Data-driven skill refactor** *(active — see TASKS.md Now)*: replace hardcoded skill assignment with a skill data dict; three existing skills refactored with no behavior change; unified bonus action selection UI.
-2. **4th skill archetype + skill info UI**: new archetype using the data model; skill names, costs, and cooldowns shown in battle UI per unit.
+1. **4th skill archetype + skill info UI** *(active — see TASKS.md Now)*: new archetype using the data model; skill names, costs, and cooldowns shown in battle UI per unit.
 3. **Rank / tier system**: gladiator rank (recruit/veteran/champion) unlocks proficiency +3/+4 and stat progression; prerequisite for equipment system.
 4. **Terrain / obstacle tiles**: block movement, create stronger positioning choices.
 5. **Crowd/style scoring hooks via CHA**: sponsors can reference style beyond kills, rounds, and marked targets.

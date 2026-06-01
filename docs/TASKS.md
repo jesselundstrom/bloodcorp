@@ -10,17 +10,11 @@
 
 ## Now
 
-- **Character-specific skills — data-driven refactor** - Replace hardcoded roster-index skill assignment with a skill data structure. Include `attack_stat` field (STR/DEX/INT) now that the stat block exists. Gating dependency for 4th archetype, skill UI, unified bonus UI, and equipment/augmentation hooks.
-  - [ ] Define skill data dict (name, description, action_cost, cooldown, valid_targets, attack_stat)
-  - [ ] Refactor `_build_units()` to read from skill data instead of hardcoded index logic
-  - [ ] Three existing skills (Brutal Charge, Marksman, Execution Mark) produce identical in-battle behavior — pure refactor, no behavior change
-  - [ ] Unified bonus action selection UI (natural payoff once multiple bonus actions share a model)
-
-## Next
-
 - **4th skill archetype + skill info UI** - New archetype using the data model above; skill details surfaced to player.
   - [ ] 4th skill archetype implemented
   - [ ] Skill names, costs, and cooldowns shown in battle UI per unit
+
+## Next
 
 ## Later
 
@@ -48,3 +42,4 @@
 - **Pixel font** - m5x7 pixel font imported; applied globally via `assets/theme/bloodcorp.tres` set as `gui/theme/custom` in project settings
 - **Gladiator stat block** - STR_score/DEX/CON/INT/CHA (8-18) added to all gladiator dicts; `_stat_mod()` helper uses float-floor; `hp_max = 8 + CON_mod`; `defense_class = 10 + DEX_mod + armor`; old saves backfilled with 10 defaults
 - **D&D-style attack resolution** - `1d20 + attack_bonus vs DC`; hit/miss/crit (nat 20 = double dice); flanking + mark → advantage (binary, 2d20 take high); `1d6+STR_mod` melee / `1d8+DEX_mod` ranged; proficiency +2 (recruit placeholder); min 1 damage on hit; `MARK_BONUS`/`FLANK_BONUS` removed; mark now advantage-only (no bonus damage)
+- **Data-driven skill refactor** - `SkillData.gd` defines Brutal Charge / Marksman / Execution Mark / Shove with display_name, description, action_cost, valid_targets, attack_stat, cooldown; `_build_units()` reads from `SkillData` via fallback index array; identical in-battle behavior preserved; BtnShove+BtnMark replaced with single BtnBonus+PopupMenu unified bonus action UI
