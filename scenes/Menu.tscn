@@ -1,0 +1,74 @@
+[gd_scene format=3 uid="uid://dmsq3qfegoyxb"]
+
+[ext_resource type="Script" uid="uid://ctffd3np2yjxa" path="res://scripts/Menu.gd" id="1_xdvgc"]
+
+[node name="Menu" type="Control" unique_id=506719609]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_xdvgc")
+
+[node name="Background" type="ColorRect" parent="." unique_id=2126164829]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.039, 0.039, 0.059, 1)
+
+[node name="CenterLayout" type="VBoxContainer" parent="." unique_id=1751097885]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -250.0
+offset_right = 200.0
+offset_bottom = 250.0
+alignment = 1
+
+[node name="Title" type="Label" parent="CenterLayout" unique_id=1860685786]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.133, 0.267, 1)
+theme_override_font_sizes/font_size = 72
+text = "BLOODCORP"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="CenterLayout" unique_id=471548151]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0.8, 1)
+theme_override_font_sizes/font_size = 16
+text = "SPONSORED COMBAT DIVISION"
+horizontal_alignment = 1
+
+[node name="Spacer" type="Control" parent="CenterLayout" unique_id=241917269]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+
+[node name="BtnNewGame" type="Button" parent="CenterLayout" unique_id=1155724072]
+custom_minimum_size = Vector2(300, 50)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "NEW GAME"
+
+[node name="BtnContinue" type="Button" parent="CenterLayout" unique_id=1299512552]
+custom_minimum_size = Vector2(300, 50)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "CONTINUE"
+
+[node name="BtnQuit" type="Button" parent="CenterLayout" unique_id=1174009902]
+custom_minimum_size = Vector2(300, 50)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+text = "QUIT"
+
+[node name="Scanlines" type="ColorRect" parent="." unique_id=93081759]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0, 0, 0, 0)
