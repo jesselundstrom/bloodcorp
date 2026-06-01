@@ -74,6 +74,9 @@ func load_game() -> bool:
 	if saved_roster is Array:
 		for entry in saved_roster:
 			if entry is Dictionary:
+				for stat in ["strength_score", "dexterity", "constitution", "intelligence", "charisma"]:
+					if not entry.has(stat):
+						entry[stat] = 10
 				roster.append(entry)
 	var saved_sponsor = parsed.get("active_sponsor", {})
 	active_sponsor = saved_sponsor if saved_sponsor is Dictionary else {}

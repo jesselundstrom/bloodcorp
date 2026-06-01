@@ -27,6 +27,11 @@ func _generate_recruits(count: int) -> Array:
 			"strength": randi_range(1, 10),
 			"speed": randi_range(1, 10),
 			"armor": randi_range(1, 10),
+			"strength_score": randi_range(8, 18),
+			"dexterity": randi_range(8, 18),
+			"constitution": randi_range(8, 18),
+			"intelligence": randi_range(8, 18),
+			"charisma": randi_range(8, 18),
 		})
 	return result
 
