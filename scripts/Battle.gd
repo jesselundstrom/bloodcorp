@@ -18,12 +18,19 @@ const UNIT_SIZE := Vector2(36, 36)
 const COLOR_PLAYER := Color(0.0, 1.0, 0.8, 1.0)
 const COLOR_ENEMY := Color(1.0, 0.133, 0.267, 1.0)
 const COLOR_SELECTED_BORDER := Color(1, 1, 1, 1)
+const COLOR_ACTIVE_BORDER := Color(0.0, 1.0, 0.8, 0.85)
+const COLOR_HOVER_BORDER := Color(1, 1, 1, 0.45)
+const COLOR_ATTACK_READY := Color(1.0, 0.133, 0.267, 1.0)
+const COLOR_ATTACK_DISABLED := Color(0.22, 0.22, 0.25, 1.0)
+const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
 
 var _units: Array = []
 var _initiative: Array = []
 var _turn_index: int = 0
 var _round: int = 1
 var _battle_over: bool = false
+var _selected_target = null
+var _hovered_target = null
 
 @onready var _arena: Control = $Layout/MainRow/Arena
 @onready var _player_list: VBoxContainer = $Layout/MainRow/PlayerHPPanel/PlayerList
@@ -112,8 +119,41 @@ func _style_button(btn: Button) -> void:
 	hover.set_border_width_all(2)
 	btn.add_theme_stylebox_override("hover", hover)
 
+	var disabled := StyleBoxFlat.new()
+	disabled.bg_color = COLOR_ATTACK_DISABLED
+	disabled.border_color = Color(0.36, 0.36, 0.4, 1.0)
+	disabled.set_border_width_all(2)
+	btn.add_theme_stylebox_override("disabled", disabled)
+
 	btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	btn.add_theme_color_override("font_disabled_color", Color(0.72, 0.72, 0.76, 1.0))
 	btn.add_theme_font_size_override("font_size", 14)
+
+
+func _style_attack_button(has_target: bool) -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = COLOR_ATTACK_READY if has_target else COLOR_ATTACK_DISABLED
+	normal.border_color = COLOR_ATTACK_READY if has_target else Color(0.36, 0.36, 0.4, 1.0)
+	normal.set_border_width_all(2)
+	_btn_attack.add_theme_stylebox_override("normal", normal)
+
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color(1.0, 0.22, 0.34, 1.0) if has_target else COLOR_ATTACK_DISABLED
+	hover.border_color = Color(1.0, 0.45, 0.55, 1.0) if has_target else Color(0.36, 0.36, 0.4, 1.0)
+	hover.set_border_width_all(2)
+	_btn_attack.add_theme_stylebox_override("hover", hover)
+
+	var pressed := StyleBoxFlat.new()
+	pressed.bg_color = Color(0.78, 0.04, 0.12, 1.0) if has_target else COLOR_ATTACK_DISABLED
+	pressed.border_color = Color(1, 1, 1, 0.8) if has_target else Color(0.36, 0.36, 0.4, 1.0)
+	pressed.set_border_width_all(2)
+	_btn_attack.add_theme_stylebox_override("pressed", pressed)
+
+	var disabled := StyleBoxFlat.new()
+	disabled.bg_color = COLOR_ATTACK_DISABLED
+	disabled.border_color = Color(0.36, 0.36, 0.4, 1.0)
+	disabled.set_border_width_all(2)
+	_btn_attack.add_theme_stylebox_override("disabled", disabled)
 
 
 func _build_units() -> void:
@@ -124,6 +164,7 @@ func _build_units() -> void:
 		g["hp_max"] = 20 + g["armor"] * 2
 		g["hp_current"] = g["hp_max"]
 		g["rect_node"] = null
+		g["border_nodes"] = []
 		g["hp_bar_node"] = null
 		_units.append(g)
 
@@ -141,6 +182,7 @@ func _build_units() -> void:
 			"hp_max": 0,
 			"hp_current": 0,
 			"rect_node": null,
+			"border_nodes": [],
 			"hp_bar_node": null,
 		}
 		e["hp_max"] = 20 + int(e["armor"]) * 2
@@ -173,8 +215,13 @@ func _place_units() -> void:
 		rect.size = UNIT_SIZE
 		rect.color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
 		rect.position = _iso_to_screen(unit["grid_pos"])
+		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.gui_input.connect(_on_unit_gui_input.bind(unit))
+		rect.mouse_entered.connect(_on_unit_mouse_entered.bind(unit))
+		rect.mouse_exited.connect(_on_unit_mouse_exited.bind(unit))
 		_arena.add_child(rect)
 		unit["rect_node"] = rect
+		unit["border_nodes"] = _create_unit_borders(rect)
 
 
 func _build_hp_bars() -> void:
@@ -209,6 +256,7 @@ func _start_turn() -> void:
 	if _battle_over or _initiative.is_empty():
 		return
 
+	_clear_target_selection(false)
 	var unit: Dictionary = _initiative[_turn_index]
 	_lbl_round.text = "ROUND %d" % _round
 	_lbl_turn.text = "TURN: %s" % unit["name"]
@@ -219,9 +267,10 @@ func _start_turn() -> void:
 
 	_highlight_active(unit)
 
-	var is_player_turn := str(unit["team"]) == "player"
-	_btn_attack.disabled = not is_player_turn
+	var is_player_turn: bool = str(unit["team"]) == "player"
 	_btn_pass.disabled = not is_player_turn
+	_update_targeting_enabled()
+	_update_attack_button_state()
 
 	if not is_player_turn:
 		await get_tree().create_timer(0.6).timeout
@@ -229,19 +278,139 @@ func _start_turn() -> void:
 
 
 func _highlight_active(active_unit: Dictionary) -> void:
-	for unit: Dictionary in _initiative:
+	for unit: Dictionary in _units:
+		if unit["rect_node"] == null:
+			continue
+		_update_unit_visual(unit, active_unit)
+
+
+func _create_unit_borders(rect: ColorRect) -> Array:
+	var borders: Array = []
+	for border_name in ["BorderTop", "BorderRight", "BorderBottom", "BorderLeft"]:
+		var border := ColorRect.new()
+		border.name = border_name
+		border.color = COLOR_TRANSPARENT
+		border.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rect.add_child(border)
+		borders.append(border)
+	return borders
+
+
+func _set_unit_border(unit: Dictionary, color: Color, width: int) -> void:
+	var borders: Array = unit.get("border_nodes", [])
+	if borders.size() != 4:
+		return
+
+	var rect := unit["rect_node"] as ColorRect
+	var w := float(width)
+	var top := borders[0] as ColorRect
+	var right := borders[1] as ColorRect
+	var bottom := borders[2] as ColorRect
+	var left := borders[3] as ColorRect
+	for border: ColorRect in [top, right, bottom, left]:
+		border.color = color
+		border.visible = width > 0
+
+	top.position = Vector2.ZERO
+	top.size = Vector2(rect.size.x, w)
+	right.position = Vector2(rect.size.x - w, 0)
+	right.size = Vector2(w, rect.size.y)
+	bottom.position = Vector2(0, rect.size.y - w)
+	bottom.size = Vector2(rect.size.x, w)
+	left.position = Vector2.ZERO
+	left.size = Vector2(w, rect.size.y)
+
+
+func _update_unit_visual(unit: Dictionary, active_unit: Dictionary) -> void:
+	var rect := unit["rect_node"] as ColorRect
+	var team_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
+	rect.color = team_color.lightened(0.18) if unit == _hovered_target and _is_targetable(unit) else team_color
+
+	if unit == _selected_target and _is_valid_target(unit):
+		_set_unit_border(unit, COLOR_SELECTED_BORDER, 3)
+	elif unit == _hovered_target and _is_targetable(unit):
+		_set_unit_border(unit, COLOR_HOVER_BORDER, 2)
+	elif unit == active_unit:
+		_set_unit_border(unit, COLOR_ACTIVE_BORDER, 2)
+	else:
+		_set_unit_border(unit, COLOR_TRANSPARENT, 0)
+
+
+func _is_player_turn() -> bool:
+	if _battle_over or _initiative.is_empty():
+		return false
+	return str(_initiative[_turn_index]["team"]) == "player"
+
+
+func _is_targetable(unit: Dictionary) -> bool:
+	return _is_player_turn() and str(unit["team"]) == "enemy" and int(unit["hp_current"]) > 0
+
+
+func _is_valid_target(target) -> bool:
+	if not (target is Dictionary):
+		return false
+	return _units.has(target) and str(target.get("team", "")) == "enemy" and int(target.get("hp_current", 0)) > 0
+
+
+func _update_targeting_enabled() -> void:
+	for unit: Dictionary in _units:
 		if unit["rect_node"] == null:
 			continue
 		var rect := unit["rect_node"] as ColorRect
-		if unit == active_unit:
-			var style := StyleBoxFlat.new()
-			var team_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
-			style.bg_color = team_color
-			style.border_color = COLOR_SELECTED_BORDER
-			style.set_border_width_all(3)
-			rect.color = team_color
-		else:
-			rect.color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
+		var targetable: bool = _is_targetable(unit)
+		rect.mouse_filter = Control.MOUSE_FILTER_STOP if targetable else Control.MOUSE_FILTER_IGNORE
+		rect.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if targetable else Control.CURSOR_ARROW
+
+
+func _update_attack_button_state() -> void:
+	if _battle_over or _initiative.is_empty():
+		_btn_attack.disabled = true
+		_btn_attack.text = "ATTACK"
+		_style_attack_button(false)
+		return
+
+	var has_target: bool = _is_valid_target(_selected_target)
+	if _is_player_turn():
+		_btn_attack.disabled = not has_target
+		_btn_attack.text = "ATTACK" if has_target else "SELECT TARGET"
+		_style_attack_button(has_target)
+	else:
+		_btn_attack.disabled = true
+		_btn_attack.text = "ATTACK"
+		_style_attack_button(false)
+
+
+func _clear_target_selection(update_button := true) -> void:
+	_selected_target = null
+	_hovered_target = null
+	if update_button:
+		_update_attack_button_state()
+		if not _initiative.is_empty():
+			_highlight_active(_initiative[_turn_index])
+
+
+func _on_unit_gui_input(event: InputEvent, unit: Dictionary) -> void:
+	if not _is_targetable(unit):
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_selected_target = unit
+		_update_attack_button_state()
+		_highlight_active(_initiative[_turn_index])
+		accept_event()
+
+
+func _on_unit_mouse_entered(unit: Dictionary) -> void:
+	if not _is_targetable(unit):
+		return
+	_hovered_target = unit
+	_highlight_active(_initiative[_turn_index])
+
+
+func _on_unit_mouse_exited(unit: Dictionary) -> void:
+	if _hovered_target != unit:
+		return
+	_hovered_target = null
+	_highlight_active(_initiative[_turn_index])
 
 
 func _enemy_act(unit: Dictionary) -> void:
@@ -260,14 +429,14 @@ func _on_attack() -> void:
 	if _battle_over or _initiative.is_empty():
 		return
 	var unit: Dictionary = _initiative[_turn_index]
-	var targets: Array = []
-	for u: Dictionary in _units:
-		if u["team"] == "enemy" and int(u["hp_current"]) > 0:
-			targets.append(u)
-	if targets.is_empty():
-		_advance_turn()
+	if not _is_player_turn():
 		return
-	var target: Dictionary = _find_nearest(unit, targets)
+	if not _is_valid_target(_selected_target):
+		_update_attack_button_state()
+		return
+
+	var target: Dictionary = _selected_target
+	_clear_target_selection()
 	_apply_attack(unit, target)
 
 
@@ -322,9 +491,14 @@ func _remove_dead(unit: Dictionary) -> void:
 	if unit["rect_node"] != null:
 		(unit["rect_node"] as ColorRect).queue_free()
 		unit["rect_node"] = null
+		unit["border_nodes"] = []
 	if unit["hp_bar_node"] != null:
 		(unit["hp_bar_node"] as ProgressBar).get_parent().queue_free()
 		unit["hp_bar_node"] = null
+	if _selected_target == unit:
+		_selected_target = null
+	if _hovered_target == unit:
+		_hovered_target = null
 	_units.erase(unit)
 	_initiative.erase(unit)
 	if _turn_index >= _initiative.size():
@@ -334,6 +508,7 @@ func _remove_dead(unit: Dictionary) -> void:
 func _advance_turn() -> void:
 	if _initiative.is_empty():
 		return
+	_clear_target_selection(false)
 	_turn_index = (_turn_index + 1) % _initiative.size()
 	if _turn_index == 0:
 		_round += 1
@@ -361,6 +536,7 @@ func _show_result(won: bool) -> void:
 	_battle_over = true
 	_btn_attack.disabled = true
 	_btn_pass.disabled = true
+	_clear_target_selection()
 	_result_overlay.visible = true
 
 	if won:
