@@ -105,6 +105,11 @@ custom_minimum_size = Vector2(120, 0)
 layout_mode = 2
 text = "ATTACK"
 
+[node name="BtnShove" type="Button" parent="Layout/BottomBar/HBox" unique_id=2047391823]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "SHOVE"
+
 [node name="BtnPass" type="Button" parent="Layout/BottomBar/HBox" unique_id=1883667611]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2

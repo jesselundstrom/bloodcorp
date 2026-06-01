@@ -32,6 +32,13 @@ const COLOR_ATTACK_DISABLED := Color(0.22, 0.22, 0.25, 1.0)
 const COLOR_MOVE_TILE := Color(0.0, 1.0, 0.8, 0.28)
 const COLOR_MOVE_TILE_HOVER := Color(0.0, 1.0, 0.8, 0.52)
 const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
+const COLOR_OBSTACLE := Color(0.12, 0.09, 0.07, 0.92)
+const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.85)
+
+# Midfield cols 2-4 only; avoids player deployment (cols 0-1) and enemy (cols 5-6)
+const OBSTACLE_POSITIONS: Array = [
+	Vector2i(2, 1), Vector2i(4, 1), Vector2i(3, 2), Vector2i(2, 3), Vector2i(4, 3)
+]
 
 var _units: Array = []
 var _initiative: Array = []
@@ -55,6 +62,7 @@ var _sponsor: Dictionary = {}
 @onready var _lbl_turn: Label = $Layout/TopBar/HBox/LblTurn
 @onready var _lbl_unit_info: Label = $Layout/BottomBar/HBox/LblUnitInfo
 @onready var _btn_attack: Button = $Layout/BottomBar/HBox/BtnAttack
+@onready var _btn_shove: Button = $Layout/BottomBar/HBox/BtnShove
 @onready var _btn_pass: Button = $Layout/BottomBar/HBox/BtnPass
 @onready var _result_overlay: PanelContainer = $ResultOverlay
 @onready var _lbl_result: Label = $ResultOverlay/VBox/LblResult
@@ -79,13 +87,58 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_draw_arena_floor()
 	_place_units()
+	_draw_obstacles()
 	_build_combat_log()
 	_build_hp_bars()
 	_btn_attack.pressed.connect(_on_attack)
+	_btn_shove.pressed.connect(_on_shove)
 	_btn_pass.pressed.connect(_on_pass)
 	_btn_return_base.pressed.connect(_on_return_to_base)
 	_update_objective_label()
 	_start_turn()
+
+
+func _is_obstacle(pos: Vector2i) -> bool:
+	return OBSTACLE_POSITIONS.has(pos)
+
+
+func _draw_obstacles() -> void:
+	for pos: Vector2i in OBSTACLE_POSITIONS:
+		var tile := ColorRect.new()
+		tile.color = COLOR_OBSTACLE
+		tile.size = MOVE_TILE_SIZE
+		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.position = _iso_to_screen(pos) + (UNIT_SIZE - MOVE_TILE_SIZE) * 0.5
+
+		var border_top := ColorRect.new()
+		border_top.color = COLOR_OBSTACLE_BORDER
+		border_top.size = Vector2(MOVE_TILE_SIZE.x, 2)
+		border_top.position = Vector2.ZERO
+		border_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.add_child(border_top)
+
+		var border_bottom := ColorRect.new()
+		border_bottom.color = COLOR_OBSTACLE_BORDER
+		border_bottom.size = Vector2(MOVE_TILE_SIZE.x, 2)
+		border_bottom.position = Vector2(0, MOVE_TILE_SIZE.y - 2)
+		border_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.add_child(border_bottom)
+
+		var border_left := ColorRect.new()
+		border_left.color = COLOR_OBSTACLE_BORDER
+		border_left.size = Vector2(2, MOVE_TILE_SIZE.y)
+		border_left.position = Vector2.ZERO
+		border_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.add_child(border_left)
+
+		var border_right := ColorRect.new()
+		border_right.color = COLOR_OBSTACLE_BORDER
+		border_right.size = Vector2(2, MOVE_TILE_SIZE.y)
+		border_right.position = Vector2(MOVE_TILE_SIZE.x - 2, 0)
+		border_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.add_child(border_right)
+
+		_arena.add_child(tile)
 
 
 func _draw_arena_floor() -> void:
@@ -186,6 +239,7 @@ func _apply_styles() -> void:
 	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", 14)
 
 	_style_button(_btn_attack)
+	_style_button(_btn_shove)
 	_style_button(_btn_pass)
 	_style_button(_btn_return_base)
 
@@ -375,7 +429,7 @@ func _get_reachable_tiles(unit: Dictionary) -> Array:
 			var distance := _grid_distance(origin, pos)
 			if distance == 0 or distance > move_range:
 				continue
-			if _is_tile_occupied(pos, unit):
+			if _is_tile_occupied(pos, unit) or _is_obstacle(pos):
 				continue
 			result.append(pos)
 	return result
@@ -477,6 +531,7 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	_update_unit_info(unit)
 	_update_targeting_enabled()
 	_update_attack_button_state()
+	_update_shove_button_state()
 	_highlight_active(unit)
 	accept_event()
 
@@ -541,11 +596,12 @@ func _update_objective_label() -> void:
 func _update_unit_info(unit: Dictionary) -> void:
 	var move_state := "USED" if bool(unit.get("has_moved", false)) else "READY"
 	var action_state := "READY" if bool(unit.get("has_main_action", true)) else "USED"
-	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: —" % [
+	var bonus_state := "SHOVE" if bool(unit.get("has_bonus_action", true)) else "USED"
+	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: %s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
 		unit["strength"], unit["speed"], unit["armor"],
-		move_state, action_state
+		move_state, action_state, bonus_state
 	]
 
 
@@ -566,6 +622,7 @@ func _start_turn() -> void:
 	_btn_pass.disabled = not is_player_turn
 	_update_targeting_enabled()
 	_update_attack_button_state()
+	_update_shove_button_state()
 	if is_player_turn:
 		_show_move_tiles(unit)
 
@@ -692,6 +749,58 @@ func _update_attack_button_state() -> void:
 		_style_attack_button(false)
 
 
+func _get_adjacent_enemy(unit: Dictionary) -> Dictionary:
+	for u: Dictionary in _units:
+		if u["team"] == "enemy" and int(u.get("hp_current", 0)) > 0:
+			if _grid_distance(unit["grid_pos"], u["grid_pos"]) == 1:
+				return u
+	return {}
+
+
+func _update_shove_button_state() -> void:
+	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+		_btn_shove.disabled = true
+		_btn_shove.text = "SHOVE"
+		return
+
+	var active := _get_active_unit()
+	if active.is_empty() or not bool(active.get("has_bonus_action", true)):
+		_btn_shove.disabled = true
+		_btn_shove.text = "BONUS USED"
+		return
+
+	var has_adjacent := not _get_adjacent_enemy(active).is_empty()
+	_btn_shove.disabled = not has_adjacent
+	_btn_shove.text = "SHOVE" if has_adjacent else "SHOVE (NO TARGET)"
+
+
+func _on_shove() -> void:
+	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+		return
+
+	var unit := _get_active_unit()
+	if unit.is_empty() or not bool(unit.get("has_bonus_action", true)):
+		return
+
+	var target := _get_adjacent_enemy(unit)
+	if target.is_empty():
+		return
+
+	unit["has_bonus_action"] = false
+
+	var push_dir: Vector2i = target["grid_pos"] - unit["grid_pos"]
+	var dest: Vector2i = target["grid_pos"] + push_dir
+
+	if _is_in_grid(dest) and not _is_tile_occupied(dest, target) and not _is_obstacle(dest):
+		_move_unit_to(target, dest)
+		_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] back!" % [unit["name"], target["name"]])
+	else:
+		_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] — no room to fall back." % [unit["name"], target["name"]])
+
+	_update_unit_info(unit)
+	_update_shove_button_state()
+
+
 func _clear_target_selection(update_button := true) -> void:
 	_selected_target = null
 	_hovered_target = null
@@ -762,6 +871,7 @@ func _on_attack() -> void:
 	var target: Dictionary = _selected_target
 	unit["has_main_action"] = false
 	_update_unit_info(unit)
+	_update_shove_button_state()
 	_clear_move_tiles()
 	_clear_target_selection()
 	_apply_attack(unit, target)
@@ -888,6 +998,7 @@ func _check_battle_end() -> bool:
 func _show_result(won: bool) -> void:
 	_battle_over = true
 	_btn_attack.disabled = true
+	_btn_shove.disabled = true
 	_btn_pass.disabled = true
 	_clear_move_tiles()
 	_clear_target_selection()

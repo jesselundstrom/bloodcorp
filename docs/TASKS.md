@@ -6,7 +6,7 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 
 ## Backlog
 
-1. **Tactical arena combat direction** - Continue evolving battles toward an Arena 8-style tactical combat format. Movement foundation is in place: 7x5 grid, bounded deployment, clickable move tiles, melee range checks, and simple enemy pursuit. Next: terrain/obstacles, stronger positioning incentives, and richer turn readability. See `docs/COMBAT_DESIGN.md`.
+1. **Tactical arena combat direction** - Action bar, obstacle tiles, and Shove bonus action are in. Next: stronger positioning incentives (flanking/high-ground bonuses, push-into-obstacle damage), one character-specific active skill, basic range variation beyond melee adjacency. See `docs/COMBAT_DESIGN.md`.
 
 3. **Action economy** - Expand the current combat state into a full action model. Battle units now reserve `has_main_action`, `has_bonus_action`, and `has_moved`; basic attacks consume the main action and movement is once per turn. Next: expose bonus actions, skills, item use, and defensive choices in the UI.
 
@@ -37,3 +37,4 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 - **Save / Load** - `GameState.save_game/load_game/has_save`; auto-saves on hire/fire and after battle result; Continue button enabled only when save exists
 - **Sponsor system** - SponsorSelect screen; three contract types (kills, style/rounds, target priority); dynamic reward/penalty; mark highlighting in arena
 - **Tactical movement foundation** - Battle grid expanded to 7x5; units get move/action state; player turns support clickable movement and melee-only attacks; enemy AI advances toward nearest target; SponsorSelect double-parent UI bug fixed
+- **Tactical combat iteration** - Action bar shows MOVE/ACTION/BONUS state; 5 midfield obstacle tiles block movement for both player and enemy AI; Shove bonus action pushes adjacent enemies one tile away and is consumed once per turn
