@@ -681,21 +681,21 @@ func _build_hp_bars() -> void:
 
 func _update_objective_label() -> void:
 	var sponsor_name: String = _sponsor.get("name", "SPONSOR")
+	var style_tag := "  STYLE: %d" % _style_score if _style_score > 0 else ""
 	match _sponsor.get("type", "kills"):
 		"style":
 			var req_rounds: int = int(_sponsor.get("requirement_rounds", 1))
-			_lbl_objective.text = "ROUND %d  |  %s: WIN IN ≤ %d ROUNDS" % [
-				_round, sponsor_name, req_rounds
+			_lbl_objective.text = "ROUND %d  |  %s: WIN IN ≤ %d ROUNDS%s" % [
+				_round, sponsor_name, req_rounds, style_tag
 			]
 		"target":
 			var target_name: String = _sponsor.get("requirement_target", "?")
 			var status: String = "ELIMINATED" if _mark_killed else "ALIVE"
-			_lbl_objective.text = "ROUND %d  |  %s: EXECUTE %s  [%s]" % [
-				_round, sponsor_name, target_name, status
+			_lbl_objective.text = "ROUND %d  |  %s: EXECUTE %s  [%s]%s" % [
+				_round, sponsor_name, target_name, status, style_tag
 			]
 		_:
 			var req: int = int(_sponsor.get("requirement_kills", 0))
-			var style_tag := "  STYLE: %d" % _style_score if _style_score > 0 else ""
 			_lbl_objective.text = "ROUND %d  |  %s: KILL %d  [%d/%d]%s" % [
 				_round, sponsor_name, req, _kills, req, style_tag
 			]
@@ -1234,6 +1234,7 @@ func _apply_damage(target: Dictionary, amount: int) -> bool:
 			if target == _marked_unit:
 				_style_score += 1
 				_log("[color=#cc44ff]EXECUTION — STYLE +1[/color]")
+				_log("[color=#ffaa00]★ THE CROWD ROARS! ★[/color]")
 			_update_objective_label()
 		await get_tree().create_timer(0.25).timeout
 		_remove_dead(target)

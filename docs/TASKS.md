@@ -10,35 +10,28 @@
 
 ## Now
 
-- **Action economy** - Full action model in battle UI.
-  - [x] `has_main_action`, `has_bonus_action`, `has_moved` reserved on all units
-  - [x] Basic attacks consume main action; movement once per turn
-  - [x] Action bar shows MOVE / ACTION / BONUS state in unit info label
-  - [x] Shove bonus action wired up (consumes `has_bonus_action`)
-  - [x] Execution Mark bonus action wired up (consumes `has_bonus_action`)
-  - [ ] Additional bonus action types: item use, defensive choices
-  - [ ] Bonus action selection surfaced clearly in UI (beyond per-skill buttons)
+- **Character-specific skills — data-driven refactor** - Replace hardcoded roster-index skill assignment with a skill data structure. Gating dependency for 4th archetype, skill UI, unified bonus UI, and eventual equipment/augmentation hooks.
+  - [ ] Define skill data dict (name, description, action_cost, cooldown, valid_targets)
+  - [ ] Refactor `_build_units()` to read from skill data instead of hardcoded index logic
+  - [ ] Three existing skills (Brutal Charge, Marksman, Execution Mark) produce identical in-battle behavior — pure refactor, no behavior change
+  - [ ] Unified bonus action selection UI (natural payoff once multiple bonus actions share a model)
 
 ## Next
 
-- **Character-specific skills** - Give gladiators build-defining active skills, passive traits, or cyberware abilities.
-  - [ ] Data-driven skill definition (name, description, cost, cooldown, valid targets)
-  - [ ] 4th skill archetype (first three: Brutal Charge, Marksman, Execution Mark)
+- **4th skill archetype + skill info UI** - New archetype using the data model above; skill details surfaced to player.
+  - [ ] 4th skill archetype implemented
   - [ ] Skill names, costs, and cooldowns shown in battle UI per unit
-- **Style scoring display** - Richer crowd/style feedback in the arena.
-  - [x] `_style_score` tracked and shown in objective label on kills contract
-  - [ ] Style score visible on all contract types
-  - [ ] Crowd reaction visual or log flair tied to style events
 
 ## Later
 
-- **Augmentation system** - Data model for cyberware slots, a shop UI tab in Management, stat modifiers (e.g. +STR, +SPD) applied when Battle builds unit stats. Core to the cyberpunk identity of the game.
+- **Equipment / weapon shop** - Gear items with stat modifiers, action options, and passive effects in Management. Equip slots per gladiator. **Unblocker for item-use bonus actions.** Shown on gladiator cards and surfaced during battle when gear grants usable skills.
+- **Augmentation system** - Data model for cyberware slots, shop UI tab in Management, stat modifiers applied when Battle builds unit stats. Depends on skill/stat-modifier data model from the skills refactor — design with aug hooks in mind.
+- **Defensive stance / parry** - Bonus action for a defensive posture (damage reduction, counter, or parry). No backing data exists yet; re-evaluate after skill data model is in place.
 - **Gladiator pixel sprites** - Improve the current `gladiators.png` TextureRect/AtlasTexture setup into a future-ready Sprite2D/AnimatedSprite2D pattern with clearer placeholder pixel art and animation hooks.
 - **Game-over / campaign structure** - Lose condition when credits drop to 0 (or below hire cost). Day/season loop with escalating enemy stat scaling. A "next contract" flow after each win.
 - **Battle polish** - Smarter arena readability and spectacle. Next: stronger formation variety, at least one special ability per unit type, and a crowd-style score shown to sponsor.
 - **Audio** - AudioStreamPlayer manager autoload, looping menu music, attack/death SFX in Battle. `assets/audio/` folder TBD.
 - **Facility upgrades** - Spend credits between battles on training room (+stat cap), med bay (heal injured), comms suite (better recruits). New UI section in Management.
-- **Equipment / weapon shop** - Gear items with stat modifiers, action options, and passive effects available in Management. Equip slots per gladiator. Shown on gladiator cards and surfaced during battle when gear grants usable skills.
 
 ---
 
@@ -49,5 +42,6 @@
 - **Save / Load** - `GameState.save_game/load_game/has_save`; auto-saves on hire/fire and after battle result; Continue button enabled only when save exists
 - **Sponsor system** - SponsorSelect screen; three contract types (kills, style/rounds, target priority); dynamic reward/penalty; mark highlighting in arena
 - **Tactical movement foundation** - Battle grid expanded to 7x5; units get move/action state; player turns support clickable movement and melee-only attacks; enemy AI advances toward nearest target; SponsorSelect double-parent UI bug fixed
-- **Tactical combat iteration** - Action bar shows MOVE/ACTION/BONUS state; 5 midfield obstacle tiles block movement for both player and enemy AI; Shove bonus action pushes adjacent enemies one tile away; Execution Mark (roster[2]) marks a wounded adjacent enemy as a bonus action — +2 dmg and style point on kill
+- **Action economy** - `has_moved/has_main_action/has_bonus_action` per unit with turn reset; attacks consume main action; Shove (all units) and Execution Mark (roster skill) as bonus actions; Brutal Charge as skill-gated main action; Marksman as passive range upgrade; action bar shows MOVE/ACTION/BONUS state. *(Item use and defensive stance deferred — no backing data; unified bonus UI deferred to skills refactor)*
+- **Style scoring display** - `_style_score` shown on all three contract types; `★ THE CROWD ROARS! ★` log flair on Execution Mark kills
 - **Pixel font** - m5x7 pixel font imported; applied globally via `assets/theme/bloodcorp.tres` set as `gui/theme/custom` in project settings
