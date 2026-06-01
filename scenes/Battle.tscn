@@ -7,6 +7,8 @@ layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("1_bdmed")
 
 [node name="Background" type="ColorRect" parent="." unique_id=343537689]
@@ -109,6 +111,9 @@ text = "ATTACK"
 custom_minimum_size = Vector2(110, 0)
 layout_mode = 2
 text = "SHOVE"
+
+[node name="BtnCharge" type="Button" parent="Layout/BottomBar/HBox" unique_id=367384573]
+layout_mode = 2
 
 [node name="BtnPass" type="Button" parent="Layout/BottomBar/HBox" unique_id=1883667611]
 custom_minimum_size = Vector2(100, 0)

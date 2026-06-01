@@ -34,6 +34,8 @@ const COLOR_MOVE_TILE_HOVER := Color(0.0, 1.0, 0.8, 0.52)
 const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
 const COLOR_OBSTACLE := Color(0.12, 0.09, 0.07, 0.92)
 const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.85)
+const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
+const FLANK_BONUS := 3
 
 # Midfield cols 2-4 only; avoids player deployment (cols 0-1) and enemy (cols 5-6)
 const OBSTACLE_POSITIONS: Array = [
@@ -63,6 +65,7 @@ var _sponsor: Dictionary = {}
 @onready var _lbl_unit_info: Label = $Layout/BottomBar/HBox/LblUnitInfo
 @onready var _btn_attack: Button = $Layout/BottomBar/HBox/BtnAttack
 @onready var _btn_shove: Button = $Layout/BottomBar/HBox/BtnShove
+@onready var _btn_charge: Button = $Layout/BottomBar/HBox/BtnCharge
 @onready var _btn_pass: Button = $Layout/BottomBar/HBox/BtnPass
 @onready var _result_overlay: PanelContainer = $ResultOverlay
 @onready var _lbl_result: Label = $ResultOverlay/VBox/LblResult
@@ -92,6 +95,7 @@ func _ready() -> void:
 	_build_hp_bars()
 	_btn_attack.pressed.connect(_on_attack)
 	_btn_shove.pressed.connect(_on_shove)
+	_btn_charge.pressed.connect(_on_charge)
 	_btn_pass.pressed.connect(_on_pass)
 	_btn_return_base.pressed.connect(_on_return_to_base)
 	_update_objective_label()
@@ -240,6 +244,7 @@ func _apply_styles() -> void:
 
 	_style_button(_btn_attack)
 	_style_button(_btn_shove)
+	_style_charge_button()
 	_style_button(_btn_pass)
 	_style_button(_btn_return_base)
 
@@ -307,6 +312,36 @@ func _style_attack_button(has_target: bool) -> void:
 	_btn_attack.add_theme_stylebox_override("disabled", disabled)
 
 
+func _style_charge_button() -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color(0.18, 0.10, 0.0, 1.0)
+	normal.border_color = COLOR_CHARGE
+	normal.set_border_width_all(2)
+	_btn_charge.add_theme_stylebox_override("normal", normal)
+
+	var hover := StyleBoxFlat.new()
+	hover.bg_color = Color(0.30, 0.18, 0.0, 1.0)
+	hover.border_color = COLOR_CHARGE
+	hover.set_border_width_all(2)
+	_btn_charge.add_theme_stylebox_override("hover", hover)
+
+	var pressed := StyleBoxFlat.new()
+	pressed.bg_color = Color(0.55, 0.30, 0.0, 1.0)
+	pressed.border_color = Color(1, 1, 1, 0.8)
+	pressed.set_border_width_all(2)
+	_btn_charge.add_theme_stylebox_override("pressed", pressed)
+
+	var disabled := StyleBoxFlat.new()
+	disabled.bg_color = COLOR_ATTACK_DISABLED
+	disabled.border_color = Color(0.36, 0.36, 0.4, 1.0)
+	disabled.set_border_width_all(2)
+	_btn_charge.add_theme_stylebox_override("disabled", disabled)
+
+	_btn_charge.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	_btn_charge.add_theme_color_override("font_disabled_color", Color(0.72, 0.72, 0.76, 1.0))
+	_btn_charge.add_theme_font_size_override("font_size", 14)
+
+
 func _build_units() -> void:
 	for i in range(GameState.roster.size()):
 		var g: Dictionary = GameState.roster[i].duplicate()
@@ -320,6 +355,8 @@ func _build_units() -> void:
 		g["border_nodes"] = []
 		g["hp_bar_node"] = null
 		_add_combat_state(g)
+		if i == 0:
+			g["skill"] = "brutal_charge"
 		_units.append(g)
 
 	var enemy_count: int = randi_range(3, 5)
@@ -532,6 +569,7 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	_update_targeting_enabled()
 	_update_attack_button_state()
 	_update_shove_button_state()
+	_update_charge_button_state()
 	_highlight_active(unit)
 	accept_event()
 
@@ -597,11 +635,15 @@ func _update_unit_info(unit: Dictionary) -> void:
 	var move_state := "USED" if bool(unit.get("has_moved", false)) else "READY"
 	var action_state := "READY" if bool(unit.get("has_main_action", true)) else "USED"
 	var bonus_state := "SHOVE" if bool(unit.get("has_bonus_action", true)) else "USED"
-	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: %s" % [
+	var skill_part := ""
+	if unit.get("skill", "") == "brutal_charge":
+		var charge_ready := bool(unit.get("has_main_action", true)) and not bool(unit.get("has_moved", false))
+		skill_part = "  SKILL: %s" % ("CHARGE" if charge_ready else "USED")
+	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: %s%s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
 		unit["strength"], unit["speed"], unit["armor"],
-		move_state, action_state, bonus_state
+		move_state, action_state, bonus_state, skill_part
 	]
 
 
@@ -623,6 +665,7 @@ func _start_turn() -> void:
 	_update_targeting_enabled()
 	_update_attack_button_state()
 	_update_shove_button_state()
+	_update_charge_button_state()
 	if is_player_turn:
 		_show_move_tiles(unit)
 
@@ -774,6 +817,119 @@ func _update_shove_button_state() -> void:
 	_btn_shove.text = "SHOVE" if has_adjacent else "SHOVE (NO TARGET)"
 
 
+func _update_charge_button_state() -> void:
+	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+		_btn_charge.disabled = true
+		_btn_charge.visible = false
+		return
+
+	var active := _get_active_unit()
+	if active.is_empty() or active.get("skill", "") != "brutal_charge":
+		_btn_charge.disabled = true
+		_btn_charge.visible = false
+		return
+
+	_btn_charge.visible = true
+	var can_charge := bool(active.get("has_main_action", true)) and not bool(active.get("has_moved", false))
+	var has_target := not _get_charge_target(active).is_empty()
+	_btn_charge.disabled = not (can_charge and has_target)
+	if not bool(active.get("has_main_action", true)):
+		_btn_charge.text = "ACTION USED"
+	elif bool(active.get("has_moved", false)):
+		_btn_charge.text = "CHARGE (MOVED)"
+	elif not has_target:
+		_btn_charge.text = "CHARGE (NO PATH)"
+	else:
+		_btn_charge.text = "CHARGE"
+
+
+func _get_charge_target(unit: Dictionary) -> Dictionary:
+	var pos: Vector2i = unit["grid_pos"]
+	var move_range: int = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
+	# Charge fires in the direction of the nearest enemy (by col delta sign).
+	var live_enemies: Array = _units.filter(func(u: Dictionary) -> bool:
+		return u["team"] == "enemy" and int(u.get("hp_current", 0)) > 0
+	)
+	if live_enemies.is_empty():
+		return {}
+	var nearest := _find_nearest(unit, live_enemies)
+	if nearest.is_empty():
+		return {}
+	var dx: int = sign(nearest["grid_pos"].x - pos.x)
+	var dy: int = sign(nearest["grid_pos"].y - pos.y)
+	# Prefer column direction; if same column, use row direction.
+	if dx == 0 and dy == 0:
+		return {}
+	var step := Vector2i(dx, 0) if dx != 0 else Vector2i(0, dy)
+	for dist in range(1, move_range + 2):
+		var check := pos + step * dist
+		if not _is_in_grid(check):
+			break
+		if _is_obstacle(check):
+			break
+		for u: Dictionary in _units:
+			if u["team"] == "enemy" and int(u.get("hp_current", 0)) > 0 and u["grid_pos"] == check:
+				return u
+	return {}
+
+
+func _on_charge() -> void:
+	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+		return
+
+	var unit := _get_active_unit()
+	if unit.is_empty() or unit.get("skill", "") != "brutal_charge":
+		return
+	if not bool(unit.get("has_main_action", true)) or bool(unit.get("has_moved", false)):
+		return
+
+	var target := _get_charge_target(unit)
+	if target.is_empty():
+		return
+
+	# Step toward target, stop one tile before, then attack.
+	var pos: Vector2i = unit["grid_pos"]
+	var dx: int = sign(target["grid_pos"].x - pos.x)
+	var dy: int = sign(target["grid_pos"].y - pos.y)
+	var step := Vector2i(dx, 0) if dx != 0 else Vector2i(0, dy)
+	var land := pos
+	for dist in range(1, int(unit.get("move_range", DEFAULT_MOVE_RANGE)) + 1):
+		var next := pos + step * dist
+		if not _is_in_grid(next) or _is_obstacle(next) or _is_tile_occupied(next, unit):
+			break
+		land = next
+
+	unit["has_moved"] = true
+	unit["has_main_action"] = false
+	_move_unit_to(unit, land)
+	_clear_move_tiles()
+	_update_unit_info(unit)
+	_update_charge_button_state()
+	_update_attack_button_state()
+	_update_shove_button_state()
+
+	_log("[color=#ffaa00]%s[/color] [color=#00ffcc]CHARGES![/color]" % unit["name"])
+	await _apply_attack_direct(unit, target)
+
+
+func _apply_attack_direct(attacker: Dictionary, target: Dictionary) -> void:
+	var base_damage: int = maxi(1, int(attacker["strength"]) - int(target["armor"]))
+	var flanked := _is_flanked(attacker, target)
+	var damage := base_damage + (FLANK_BONUS if flanked else 0)
+	var attacker_color := "[color=#ffaa00]"
+	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
+	var flank_tag := "  [color=#ffaa00][FLANK +%d][/color]" % FLANK_BONUS if flanked else ""
+	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg%s" % [
+		attacker_color, attacker["name"],
+		target_color, target["name"],
+		damage, flank_tag
+	])
+	var killed := await _apply_damage(target, damage)
+	if killed and _check_battle_end():
+		return
+	_advance_turn()
+
+
 func _on_shove() -> void:
 	if _battle_over or _initiative.is_empty() or not _is_player_turn():
 		return
@@ -795,7 +951,13 @@ func _on_shove() -> void:
 		_move_unit_to(target, dest)
 		_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] back!" % [unit["name"], target["name"]])
 	else:
-		_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] — no room to fall back." % [unit["name"], target["name"]])
+		var wall_damage := 2
+		_log("[color=#00ffcc]%s[/color] slammed [color=#ff2244]%s[/color] into the wall — [color=#ffaa00]%d[/color] dmg!" % [
+			unit["name"], target["name"], wall_damage
+		])
+		var killed := await _apply_damage(target, wall_damage)
+		if killed and _check_battle_end():
+			return
 
 	_update_unit_info(unit)
 	_update_shove_button_state()
@@ -872,6 +1034,7 @@ func _on_attack() -> void:
 	unit["has_main_action"] = false
 	_update_unit_info(unit)
 	_update_shove_button_state()
+	_update_charge_button_state()
 	_clear_move_tiles()
 	_clear_target_selection()
 	_apply_attack(unit, target)
@@ -907,25 +1070,13 @@ func _get_enemy_move_destination(unit: Dictionary, target: Dictionary) -> Vector
 	return best_pos
 
 
-func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
-	var damage: int = maxi(1, int(attacker["strength"]) - int(target["armor"]))
-	target["hp_current"] = maxi(0, int(target["hp_current"]) - damage)
-
+func _apply_damage(target: Dictionary, amount: int) -> bool:
+	target["hp_current"] = maxi(0, int(target["hp_current"]) - amount)
 	if target["hp_bar_node"] != null:
 		(target["hp_bar_node"] as ProgressBar).value = target["hp_current"]
-
-	# Combat log entry
-	var attacker_color := "[color=#00ffcc]" if attacker["team"] == "player" else "[color=#ff2244]"
-	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
-	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg" % [
-		attacker_color, attacker["name"],
-		target_color, target["name"],
-		damage
-	])
-
 	_flash_hit(target)
-
 	if int(target["hp_current"]) <= 0:
+		var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
 		_log("%s%s[/color] [color=#888888]was eliminated[/color]" % [target_color, target["name"]])
 		if str(target["team"]) == "enemy":
 			_kills += 1
@@ -934,9 +1085,35 @@ func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
 			_update_objective_label()
 		await get_tree().create_timer(0.25).timeout
 		_remove_dead(target)
-		if _check_battle_end():
-			return
+		return true
+	return false
 
+
+func _is_flanked(attacker: Dictionary, target: Dictionary) -> bool:
+	var flank_pos: Vector2i = target["grid_pos"] + (target["grid_pos"] - attacker["grid_pos"])
+	for u: Dictionary in _units:
+		if u == attacker or int(u.get("hp_current", 0)) <= 0:
+			continue
+		if u["team"] == attacker["team"] and u["grid_pos"] == flank_pos:
+			return true
+	return false
+
+
+func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
+	var base_damage: int = maxi(1, int(attacker["strength"]) - int(target["armor"]))
+	var flanked := _is_flanked(attacker, target)
+	var damage := base_damage + (FLANK_BONUS if flanked else 0)
+	var attacker_color := "[color=#00ffcc]" if attacker["team"] == "player" else "[color=#ff2244]"
+	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
+	var flank_tag := "  [color=#ffaa00][FLANK +%d][/color]" % FLANK_BONUS if flanked else ""
+	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg%s" % [
+		attacker_color, attacker["name"],
+		target_color, target["name"],
+		damage, flank_tag
+	])
+	var killed := await _apply_damage(target, damage)
+	if killed and _check_battle_end():
+		return
 	_advance_turn()
 
 

@@ -23,6 +23,8 @@ Use subagents when useful:
 - `sonnet-implementation-worker` for focused implementation.
 - `haiku-code-reader` for reference tracing and diff review.
 
+Update documentation if needed, but only for the implemented slice.
+
 After implementation, report:
 
 ## Slice Complete
