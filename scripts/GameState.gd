@@ -2,6 +2,7 @@ extends Node
 
 const MAX_ROSTER_SIZE := 9
 const STARTING_CREDITS := 1000
+const SAVE_PATH := "user://savegame.json"
 
 var credits: int = STARTING_CREDITS
 var roster: Array = []
@@ -33,3 +34,41 @@ func reset() -> void:
 	roster.clear()
 	active_sponsor = null
 	current_day = 1
+
+
+func has_save() -> bool:
+	return FileAccess.file_exists(SAVE_PATH)
+
+
+func save_game() -> void:
+	var data := {
+		"credits": credits,
+		"current_day": current_day,
+		"roster": roster.duplicate(true),
+	}
+	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify(data))
+		file.close()
+
+
+func load_game() -> bool:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return false
+	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	if not file:
+		return false
+	var text := file.get_as_text()
+	file.close()
+	var parsed = JSON.parse_string(text)
+	if not (parsed is Dictionary):
+		return false
+	credits = int(parsed.get("credits", STARTING_CREDITS))
+	current_day = int(parsed.get("current_day", 1))
+	var saved_roster = parsed.get("roster", [])
+	roster.clear()
+	if saved_roster is Array:
+		for entry in saved_roster:
+			if entry is Dictionary:
+				roster.append(entry)
+	return true

@@ -131,6 +131,7 @@ func _on_hire(data: Dictionary) -> void:
 		return
 	GameState.credits -= data["cost"]
 	_recruits.erase(data)
+	GameState.save_game()
 	_refresh_credits()
 	_refresh_roster()
 	_refresh_recruits()
@@ -139,6 +140,7 @@ func _on_hire(data: Dictionary) -> void:
 func _on_fire(data: Dictionary) -> void:
 	GameState.remove_gladiator(data)
 	GameState.credits += int(data["cost"] * 0.5)
+	GameState.save_game()
 	_refresh_credits()
 	_refresh_roster()
 	_refresh_recruits()

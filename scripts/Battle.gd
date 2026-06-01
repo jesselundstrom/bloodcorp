@@ -551,6 +551,7 @@ func _show_result(won: bool) -> void:
 		_lbl_contract.text = "CONTRACT FAILED"
 		GameState.credits -= SPONSOR_PENALTY
 		_lbl_reward.text = "-%d CREDITS" % SPONSOR_PENALTY
+	GameState.save_game()
 
 
 func _on_return_to_base() -> void:

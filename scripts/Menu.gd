@@ -4,6 +4,7 @@ func _ready() -> void:
 	$CenterLayout/BtnNewGame.pressed.connect(_on_new_game)
 	$CenterLayout/BtnContinue.pressed.connect(_on_continue)
 	$CenterLayout/BtnQuit.pressed.connect(_on_quit)
+	$CenterLayout/BtnContinue.disabled = not GameState.has_save()
 	_apply_button_styles()
 	_apply_scanlines()
 
@@ -40,7 +41,8 @@ func _on_new_game() -> void:
 	get_tree().change_scene_to_file("res://scenes/Management.tscn")
 
 func _on_continue() -> void:
-	pass  # TODO: load save file
+	if GameState.load_game():
+		get_tree().change_scene_to_file("res://scenes/Management.tscn")
 
 func _on_quit() -> void:
 	get_tree().quit()

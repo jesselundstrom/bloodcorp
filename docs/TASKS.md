@@ -8,8 +8,6 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 
 1. **Sponsor system** — Let player pick a sponsor before battle. Display contract requirements (kill count, style rating, target priority). Track fulfilment during battle. Apply bonus/penalty on top of base reward. `GameState.active_sponsor` is already stubbed.
 
-2. **Save / Load** — Persist GameState (credits, roster, current_day) to a file so the Continue button works. Required before any content expansion or playtesting sessions.
-
 3. **Augmentation system** — Data model for cyberware slots, a shop UI tab in Management, stat modifiers (e.g. +STR, +SPD) applied when Battle builds unit stats. Core to the cyberpunk identity of the game.
 
 4. **Gladiator pixel sprites** — Replace the flat ColorRect squares in Battle with actual sprite nodes. `assets/sprites/` is empty. Start with placeholder 16×16 or 32×32 art; define the Sprite2D/AnimatedSprite2D pattern for future animation.
@@ -32,3 +30,4 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 
 - **Project scaffold** — Godot 4.6, GL Compatibility renderer, Jolt Physics, godot_ai MCP plugin wired up, GameState autoload *(e9a9f50, 4600e1b)*
 - **Full game loop** — Main menu, Management scene (roster/recruit/hire/fire/credits), isometric turn-based Battle (speed-initiative, targeting, damage, HP bars), Result screen with credit reward/penalty, loop back to Management *(7b760ec – 67a1d98)*
+- **Save / Load** — `GameState.save_game/load_game/has_save`; auto-saves on hire/fire and after battle result; Continue button enabled only when save exists
