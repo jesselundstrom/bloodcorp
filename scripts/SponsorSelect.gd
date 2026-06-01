@@ -75,7 +75,7 @@ func _build_ui() -> void:
 	title_lbl.text = "SELECT CONTRACT SPONSOR"
 	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_lbl.add_theme_font_size_override("font_size", 22)
+	title_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_4XL)
 	title_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	top_hbox.add_child(title_lbl)
 
@@ -140,7 +140,7 @@ func _build_sponsor_card(sponsor: Dictionary, index: int) -> PanelContainer:
 	var name_lbl := Label.new()
 	name_lbl.text = sponsor["name"]
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lbl.add_theme_font_size_override("font_size", 20)
+	name_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_3XL)
 	name_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	vbox.add_child(name_lbl)
 
@@ -152,7 +152,7 @@ func _build_sponsor_card(sponsor: Dictionary, index: int) -> PanelContainer:
 	flavor_lbl.text = sponsor["flavor"]
 	flavor_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	flavor_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	flavor_lbl.add_theme_font_size_override("font_size", 13)
+	flavor_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_BASE)
 	flavor_lbl.add_theme_color_override("font_color", Color(0.75, 0.75, 0.8, 1.0))
 	vbox.add_child(flavor_lbl)
 
@@ -169,21 +169,21 @@ func _build_sponsor_card(sponsor: Dictionary, index: int) -> PanelContainer:
 		_:
 			req_lbl.text = "REQUIREMENT: KILL %d" % sponsor["requirement_kills"]
 	req_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	req_lbl.add_theme_font_size_override("font_size", 15)
+	req_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_LG)
 	req_lbl.add_theme_color_override("font_color", COLOR_ACCENT)
 	vbox.add_child(req_lbl)
 
 	var reward_lbl := Label.new()
 	reward_lbl.text = "REWARD: +%d CR" % sponsor["reward"]
 	reward_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	reward_lbl.add_theme_font_size_override("font_size", 14)
+	reward_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_BASE)
 	reward_lbl.add_theme_color_override("font_color", COLOR_AMBER)
 	vbox.add_child(reward_lbl)
 
 	var penalty_lbl := Label.new()
 	penalty_lbl.text = "PENALTY: -%d CR" % sponsor["penalty"]
 	penalty_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	penalty_lbl.add_theme_font_size_override("font_size", 14)
+	penalty_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_BASE)
 	penalty_lbl.add_theme_color_override("font_color", COLOR_RED)
 	vbox.add_child(penalty_lbl)
 
@@ -260,4 +260,4 @@ func _style_button(btn: Button) -> void:
 
 	btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 	btn.add_theme_color_override("font_disabled_color", Color(0.5, 0.5, 0.55, 1.0))
-	btn.add_theme_font_size_override("font_size", 14)
+	btn.add_theme_font_size_override("font_size", UITheme.SIZE_BASE)

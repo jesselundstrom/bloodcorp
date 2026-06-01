@@ -19,6 +19,12 @@ config/icon="res://icon.svg"
 
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 GameState="*res://scripts/GameState.gd"
+UITheme="*res://scripts/UITheme.gd"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
 
 [editor_plugins]
 
@@ -26,7 +32,7 @@ enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg")
 
 [gui]
 
-theme/custom="res://assets/theme/bloodcorp.theme"
+theme/custom="res://assets/theme/bloodcorp.tres"
 
 [physics]
 

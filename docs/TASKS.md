@@ -50,4 +50,4 @@
 - **Sponsor system** - SponsorSelect screen; three contract types (kills, style/rounds, target priority); dynamic reward/penalty; mark highlighting in arena
 - **Tactical movement foundation** - Battle grid expanded to 7x5; units get move/action state; player turns support clickable movement and melee-only attacks; enemy AI advances toward nearest target; SponsorSelect double-parent UI bug fixed
 - **Tactical combat iteration** - Action bar shows MOVE/ACTION/BONUS state; 5 midfield obstacle tiles block movement for both player and enemy AI; Shove bonus action pushes adjacent enemies one tile away; Execution Mark (roster[2]) marks a wounded adjacent enemy as a bonus action — +2 dmg and style point on kill
-- **Pixel font** - m5x7 pixel font imported; applied globally via `assets/theme/bloodcorp.theme` set as `gui/theme/custom` in project settings
+- **Pixel font** - m5x7 pixel font imported; applied globally via `assets/theme/bloodcorp.tres` set as `gui/theme/custom` in project settings

@@ -70,14 +70,14 @@ func _make_card(data: Dictionary, is_roster: bool) -> PanelContainer:
 	var name_lbl := Label.new()
 	name_lbl.text = data["name"]
 	name_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	name_lbl.add_theme_font_size_override("font_size", 16)
+	name_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_XL)
 	vbox.add_child(name_lbl)
 
 	# Cost
 	var cost_lbl := Label.new()
 	cost_lbl.text = "%d CR" % data["cost"]
 	cost_lbl.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
-	cost_lbl.add_theme_font_size_override("font_size", 13)
+	cost_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_BASE)
 	vbox.add_child(cost_lbl)
 
 	# Stats
@@ -90,7 +90,7 @@ func _make_card(data: Dictionary, is_roster: bool) -> PanelContainer:
 		lbl.text = stat.substr(0, 3).to_upper()
 		lbl.custom_minimum_size = Vector2(36, 0)
 		lbl.add_theme_color_override("font_color", Color(0.0, 1.0, 0.8, 1.0))
-		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_font_size_override("font_size", UITheme.SIZE_MD)
 		row.add_child(lbl)
 
 		var bar := ProgressBar.new()
@@ -119,7 +119,7 @@ func _make_card(data: Dictionary, is_roster: bool) -> PanelContainer:
 	btn_normal.set_border_width_all(2)
 	btn.add_theme_stylebox_override("normal", btn_normal)
 	btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
-	btn.add_theme_font_size_override("font_size", 13)
+	btn.add_theme_font_size_override("font_size", UITheme.SIZE_BASE)
 	vbox.add_child(btn)
 
 	return card

@@ -26,7 +26,7 @@ func _apply_title_glow() -> void:
 	var glow := Label.new()
 	glow.text = "BLOODCORP"
 	glow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	glow.add_theme_font_size_override("font_size", 82)
+	glow.add_theme_font_size_override("font_size", UITheme.SIZE_DISPLAY + 10)
 	glow.add_theme_color_override("font_color", NEON_RED_DIM)
 	glow.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	glow.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -96,7 +96,7 @@ func _apply_button_styles() -> void:
 
 		btn.add_theme_color_override("font_color", Color(1, 1, 1, 1))
 		btn.add_theme_color_override("font_disabled_color", Color(0.5, 0.5, 0.55, 1.0))
-		btn.add_theme_font_size_override("font_size", 20)
+		btn.add_theme_font_size_override("font_size", UITheme.SIZE_BASE)
 
 	$CenterLayout/Spacer.custom_minimum_size = Vector2(0, 52)
 
