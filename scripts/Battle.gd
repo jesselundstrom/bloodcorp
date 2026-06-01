@@ -6,10 +6,7 @@ const ENEMY_NAMES := [
 	"KAEL", "RAZE", "FLUX", "TOMB", "VEX", "GORN", "BLUD", "KRIX"
 ]
 
-const SPONSOR_NAME := "OMNICORP"
-const SPONSOR_REQUIREMENT := "eliminate all enemies"
-const SPONSOR_REWARD := 500
-const SPONSOR_PENALTY := 200
+# Sponsor data is read from GameState.active_sponsor at _ready.
 
 const GRID_COLS := 5
 const GRID_ROWS := 4
@@ -40,6 +37,9 @@ var _selected_target = null
 var _hovered_target = null
 var _sprite_sheet: Texture2D = null
 var _combat_log: RichTextLabel = null
+var _kills: int = 0
+var _mark_killed: bool = false
+var _sponsor: Dictionary = {}
 
 @onready var _arena: Control = $Layout/MainRow/Arena
 @onready var _player_list: VBoxContainer = $Layout/MainRow/PlayerHPPanel/PlayerList
@@ -58,6 +58,13 @@ var _combat_log: RichTextLabel = null
 
 
 func _ready() -> void:
+	_sponsor = GameState.active_sponsor.duplicate() if not GameState.active_sponsor.is_empty() else {
+		"name": "OMNICORP",
+		"flavor": "",
+		"requirement_kills": 3,
+		"reward": 500,
+		"penalty": 200,
+	}
 	_sprite_sheet = load(SPRITE_SHEET_PATH) as Texture2D
 	_apply_styles()
 	_build_units()
@@ -71,7 +78,7 @@ func _ready() -> void:
 	_btn_attack.pressed.connect(_on_attack)
 	_btn_pass.pressed.connect(_on_pass)
 	_btn_return_base.pressed.connect(_on_return_to_base)
-	_lbl_objective.text = "%s CONTRACT: %s" % [SPONSOR_NAME, SPONSOR_REQUIREMENT.to_upper()]
+	_update_objective_label()
 	_start_turn()
 
 
@@ -244,6 +251,7 @@ func _build_units() -> void:
 	for i in range(GameState.roster.size()):
 		var g: Dictionary = GameState.roster[i].duplicate()
 		g["team"] = "player"
+		g["is_mark"] = false
 		g["grid_pos"] = Vector2i(i % 2, i)
 		g["hp_max"] = 20 + g["armor"] * 2
 		g["hp_current"] = g["hp_max"]
@@ -256,6 +264,10 @@ func _build_units() -> void:
 	var enemy_count: int = randi_range(3, 5)
 	var name_pool: Array = ENEMY_NAMES.duplicate()
 	name_pool.shuffle()
+	var mark_name: String = _sponsor.get("requirement_target", "") if _sponsor.get("type", "") == "target" else ""
+	if mark_name != "":
+		name_pool.erase(mark_name)
+		name_pool.insert(0, mark_name)
 	for i in range(enemy_count):
 		var e: Dictionary = {
 			"name": name_pool[i],
@@ -263,6 +275,7 @@ func _build_units() -> void:
 			"speed": randi_range(1, 10),
 			"armor": randi_range(1, 10),
 			"team": "enemy",
+			"is_mark": mark_name != "" and name_pool[i] == mark_name,
 			"grid_pos": Vector2i(3 + (i % 2), i),
 			"hp_max": 0,
 			"hp_current": 0,
@@ -358,13 +371,34 @@ func _build_hp_bars() -> void:
 			_enemy_list.add_child(container)
 
 
+func _update_objective_label() -> void:
+	var sponsor_name: String = _sponsor.get("name", "SPONSOR")
+	match _sponsor.get("type", "kills"):
+		"style":
+			var req_rounds: int = int(_sponsor.get("requirement_rounds", 1))
+			_lbl_objective.text = "ROUND %d  |  %s: WIN IN ≤ %d ROUNDS" % [
+				_round, sponsor_name, req_rounds
+			]
+		"target":
+			var target_name: String = _sponsor.get("requirement_target", "?")
+			var status: String = "ELIMINATED" if _mark_killed else "ALIVE"
+			_lbl_objective.text = "ROUND %d  |  %s: EXECUTE %s  [%s]" % [
+				_round, sponsor_name, target_name, status
+			]
+		_:
+			var req: int = int(_sponsor.get("requirement_kills", 0))
+			_lbl_objective.text = "ROUND %d  |  %s: KILL %d  [%d/%d]" % [
+				_round, sponsor_name, req, _kills, req
+			]
+
+
 func _start_turn() -> void:
 	if _battle_over or _initiative.is_empty():
 		return
 
 	_clear_target_selection(false)
 	var unit: Dictionary = _initiative[_turn_index]
-	_lbl_objective.text = "ROUND %d  |  %s CONTRACT: %s" % [_round, SPONSOR_NAME, SPONSOR_REQUIREMENT.to_upper()]
+	_update_objective_label()
 	# Update team label to highlight whose turn it is
 	_lbl_unit_info.text = "%s  STR:%d  SPD:%d  ARM:%d  HP:%d/%d" % [
 		unit["name"], unit["strength"], unit["speed"],
@@ -440,6 +474,8 @@ func _update_unit_visual(unit: Dictionary, active_unit: Dictionary) -> void:
 		_set_unit_border(unit, COLOR_HOVER_BORDER, 2)
 	elif unit == active_unit:
 		_set_unit_border(unit, COLOR_ACTIVE_BORDER, 2)
+	elif unit.get("is_mark", false) and int(unit.get("hp_current", 0)) > 0:
+		_set_unit_border(unit, Color(1.0, 0.667, 0.0, 0.9), 2)
 	else:
 		_set_unit_border(unit, COLOR_TRANSPARENT, 0)
 
@@ -587,6 +623,11 @@ func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
 
 	if int(target["hp_current"]) <= 0:
 		_log("%s%s[/color] [color=#888888]was eliminated[/color]" % [target_color, target["name"]])
+		if str(target["team"]) == "enemy":
+			_kills += 1
+			if target.get("is_mark", false):
+				_mark_killed = true
+			_update_objective_label()
 		await get_tree().create_timer(0.25).timeout
 		_remove_dead(target)
 		if _check_battle_end():
@@ -656,18 +697,44 @@ func _show_result(won: bool) -> void:
 	_clear_target_selection()
 	_result_overlay.visible = true
 
+	var reward: int = int(_sponsor.get("reward", 500))
+	var penalty: int = int(_sponsor.get("penalty", 200))
+	var sponsor_name: String = _sponsor.get("name", "SPONSOR")
+	var contract_type: String = _sponsor.get("type", "kills")
+
+	var contract_met: bool
+	var contract_detail: String
+	match contract_type:
+		"style":
+			var req_rounds: int = int(_sponsor.get("requirement_rounds", 1))
+			contract_met = won and _round <= req_rounds
+			contract_detail = "(%d/%d ROUNDS)" % [_round, req_rounds]
+		"target":
+			var target_name: String = _sponsor.get("requirement_target", "TARGET")
+			contract_met = won and _mark_killed
+			contract_detail = "(%s %s)" % [target_name, "ELIMINATED" if _mark_killed else "SURVIVED"]
+		_:
+			var req_kills: int = int(_sponsor.get("requirement_kills", 0))
+			contract_met = won and _kills >= req_kills
+			contract_detail = "(%d/%d KILLS)" % [_kills, req_kills]
+
 	if won:
 		_lbl_result.text = "VICTORY"
 		_lbl_result.add_theme_color_override("font_color", COLOR_PLAYER)
-		_lbl_contract.text = "CONTRACT FULFILLED"
-		GameState.credits += SPONSOR_REWARD
-		_lbl_reward.text = "+%d CREDITS" % SPONSOR_REWARD
+		if contract_met:
+			_lbl_contract.text = "%s CONTRACT FULFILLED  %s" % [sponsor_name, contract_detail]
+			GameState.credits += reward
+			_lbl_reward.text = "+%d CREDITS" % reward
+		else:
+			_lbl_contract.text = "%s CONTRACT FAILED  %s" % [sponsor_name, contract_detail]
+			GameState.credits -= penalty
+			_lbl_reward.text = "-%d CREDITS" % penalty
 	else:
 		_lbl_result.text = "DEFEAT"
 		_lbl_result.add_theme_color_override("font_color", COLOR_ENEMY)
-		_lbl_contract.text = "CONTRACT FAILED"
-		GameState.credits -= SPONSOR_PENALTY
-		_lbl_reward.text = "-%d CREDITS" % SPONSOR_PENALTY
+		_lbl_contract.text = "%s CONTRACT FAILED  %s" % [sponsor_name, contract_detail]
+		GameState.credits -= penalty
+		_lbl_reward.text = "-%d CREDITS" % penalty
 	GameState.save_game()
 
 

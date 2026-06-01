@@ -6,8 +6,11 @@ const SAVE_PATH := "user://savegame.json"
 
 var credits: int = STARTING_CREDITS
 var roster: Array = []
-var active_sponsor = null
+var active_sponsor: Dictionary = {}
 var current_day: int = 1
+
+# Sponsor dict schema:
+# { "name": String, "flavor": String, "requirement_kills": int, "reward": int, "penalty": int }
 
 
 func add_gladiator(gladiator) -> bool:
@@ -21,7 +24,7 @@ func remove_gladiator(gladiator) -> void:
 	roster.erase(gladiator)
 
 
-func set_sponsor(sponsor) -> void:
+func set_sponsor(sponsor: Dictionary) -> void:
 	active_sponsor = sponsor
 
 
@@ -32,7 +35,7 @@ func advance_day() -> void:
 func reset() -> void:
 	credits = STARTING_CREDITS
 	roster.clear()
-	active_sponsor = null
+	active_sponsor = {}
 	current_day = 1
 
 
@@ -45,6 +48,7 @@ func save_game() -> void:
 		"credits": credits,
 		"current_day": current_day,
 		"roster": roster.duplicate(true),
+		"active_sponsor": active_sponsor.duplicate(),
 	}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file:
@@ -71,4 +75,6 @@ func load_game() -> bool:
 		for entry in saved_roster:
 			if entry is Dictionary:
 				roster.append(entry)
+	var saved_sponsor = parsed.get("active_sponsor", {})
+	active_sponsor = saved_sponsor if saved_sponsor is Dictionary else {}
 	return true

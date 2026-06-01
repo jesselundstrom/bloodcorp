@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://b4mahrk0qmrt4"]
+
+[ext_resource type="Script" path="res://scripts/SponsorSelect.gd" id="1_0a87y"]
+
+[node name="SponsorSelect" type="Control" unique_id=1791343175]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_0a87y")

@@ -6,9 +6,7 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 
 ## Backlog
 
-1. **Sponsor system** — Let player pick a sponsor before battle. Display contract requirements (kill count, style rating, target priority). Track fulfilment during battle. Apply bonus/penalty on top of base reward. `GameState.active_sponsor` is already stubbed.
-
-2. **Tactical arena combat direction** — Evolve battles toward an Arena 8-style tactical combat format: compact arena fights with limited cRPG-style movement, positioning choices, and readable turn flow inspired by Baldur's Gate 3. See `docs/COMBAT_DESIGN.md`.
+1. **Tactical arena combat direction** — Evolve battles toward an Arena 8-style tactical combat format: compact arena fights with limited cRPG-style movement, positioning choices, and readable turn flow inspired by Baldur's Gate 3. See `docs/COMBAT_DESIGN.md`.
 
 3. **Action economy** — Add a combat action model with one main action and one bonus action per active gladiator. Attacks, movement, skills, item use, and defensive choices should consume the correct action type.
 
@@ -37,3 +35,4 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 - **Project scaffold** — Godot 4.6, GL Compatibility renderer, Jolt Physics, godot_ai MCP plugin wired up, GameState autoload *(e9a9f50, 4600e1b)*
 - **Full game loop** — Main menu, Management scene (roster/recruit/hire/fire/credits), isometric turn-based Battle (speed-initiative, targeting, damage, HP bars), Result screen with credit reward/penalty, loop back to Management *(7b760ec – 67a1d98)*
 - **Save / Load** — `GameState.save_game/load_game/has_save`; auto-saves on hire/fire and after battle result; Continue button enabled only when save exists
+- **Sponsor system** — SponsorSelect screen; three contract types (kills, style/rounds, target priority); dynamic reward/penalty; mark highlighting in arena

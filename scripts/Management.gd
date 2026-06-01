@@ -147,8 +147,8 @@ func _on_fire(data: Dictionary) -> void:
 	_refresh_deploy()
 
 func _on_deploy() -> void:
-	var battle_path := "res://scenes/Battle.tscn"
-	if not FileAccess.file_exists(battle_path):
-		push_warning("Battle.tscn not found — deploy blocked")
+	var sponsor_path := "res://scenes/SponsorSelect.tscn"
+	if not FileAccess.file_exists(sponsor_path):
+		push_warning("SponsorSelect.tscn not found — deploy blocked")
 		return
-	get_tree().change_scene_to_file(battle_path)
+	get_tree().change_scene_to_file(sponsor_path)
