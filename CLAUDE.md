@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Godot 4.6 game project named **bloodcorp**. Currently in early development — no scenes or game scripts exist yet.
+Godot 4.6 game project named **bloodcorp**. Core game loop is playable end-to-end: Menu → Management → Battle → Result → Management.
 
 ## Running the Project
 
@@ -43,10 +43,19 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 - Isometric perspective for battle scenes
 
 ### Architecture
-- `scenes/` — Main, Menu, Management, Battle
-- `scripts/` — GDScript logic files
-- `assets/sprites/` — Pixel art sprites
-- `assets/fonts/` — Pixel fonts
+
+**Scenes & Scripts (one script per scene):**
+- `scenes/Main.tscn` / `scripts/Main.gd` — Entry point; routes immediately to Menu
+- `scenes/Menu.tscn` / `scripts/Menu.gd` — Main menu with New Game / Continue / Quit
+- `scenes/Management.tscn` / `scripts/Management.gd` — Roster management, random recruit pool, hire/fire, deploy to arena
+- `scenes/Battle.tscn` / `scripts/Battle.gd` — Turn-based combat: speed-sorted initiative, isometric grid, damage formula (STR − ARM), result overlay
+- `scripts/GameState.gd` — Global Autoload; holds credits, roster array, active_sponsor, current_day
+
+**Assets (currently empty placeholders):**
+- `assets/sprites/` — Pixel art sprites (not yet populated)
+- `assets/fonts/` — Pixel fonts (not yet populated)
+
+**Task backlog:** see [docs/TASKS.md](docs/TASKS.md)
 
 ### Development Style
 - Use Godot MCP tools to create nodes and scenes in the live editor

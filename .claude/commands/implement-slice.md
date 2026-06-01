@@ -37,12 +37,6 @@ After implementation, report:
 
 ### Verification
 
-Report:
-- npm run typecheck
-- npm run lint
-- npm run test:unit
-- npm run build
-
 ### Follow-up risks
 
 Stop after this slice.
