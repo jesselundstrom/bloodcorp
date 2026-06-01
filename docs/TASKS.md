@@ -6,7 +6,7 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 
 ## Backlog
 
-1. **Tactical arena combat direction** - Action bar, obstacle tiles, Shove/wall damage, flanking bonus (+3 dmg when sandwiched), and Brutal Charge skill (roster[0] charges in a line) are in. Next: basic range variation beyond melee adjacency, second character-specific skill archetype. See `docs/COMBAT_DESIGN.md`.
+1. **Tactical arena combat direction** - Action bar, obstacle tiles, Shove/wall damage, flanking bonus (+3 dmg when sandwiched), Brutal Charge skill (roster[0] charges in a line), and Marksman skill (roster[1] attacks at range 2 with visual overlay) are in. Next: second character-specific skill archetype, crowd/style scoring hooks. See `docs/COMBAT_DESIGN.md`.
 
 3. **Action economy** - Expand the current combat state into a full action model. Battle units now reserve `has_main_action`, `has_bonus_action`, and `has_moved`; basic attacks consume the main action and movement is once per turn. Next: expose bonus actions, skills, item use, and defensive choices in the UI.
 

@@ -50,6 +50,7 @@ var _battle_over: bool = false
 var _selected_target = null
 var _hovered_target = null
 var _move_tiles: Array = []
+var _attack_range_tiles: Array = []
 var _sprite_sheet: Texture2D = null
 var _combat_log: RichTextLabel = null
 var _kills: int = 0
@@ -357,6 +358,9 @@ func _build_units() -> void:
 		_add_combat_state(g)
 		if i == 0:
 			g["skill"] = "brutal_charge"
+		elif i == 1:
+			g["skill"] = "marksman"
+			g["attack_range"] = 2
 		_units.append(g)
 
 	var enemy_count: int = randi_range(3, 5)
@@ -546,6 +550,32 @@ func _clear_move_tiles() -> void:
 	_move_tiles.clear()
 
 
+func _show_attack_range_tiles(unit: Dictionary) -> void:
+	_clear_attack_range_tiles()
+	var atk_range: int = int(unit.get("attack_range", DEFAULT_ATTACK_RANGE))
+	if atk_range <= 1 or not _is_player_turn():
+		return
+	for u: Dictionary in _units:
+		if u["team"] != "enemy" or int(u.get("hp_current", 0)) <= 0:
+			continue
+		if _grid_distance(unit["grid_pos"], u["grid_pos"]) > atk_range:
+			continue
+		var tile := ColorRect.new()
+		tile.color = Color(1.0, 0.133, 0.267, 0.18)
+		tile.size = MOVE_TILE_SIZE
+		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.position = _iso_to_screen(u["grid_pos"]) + (UNIT_SIZE - MOVE_TILE_SIZE) * 0.5
+		_arena.add_child(tile)
+		_attack_range_tiles.append(tile)
+
+
+func _clear_attack_range_tiles() -> void:
+	for tile: ColorRect in _attack_range_tiles:
+		if is_instance_valid(tile):
+			tile.queue_free()
+	_attack_range_tiles.clear()
+
+
 func _is_reachable_tile(unit: Dictionary, grid_pos: Vector2i) -> bool:
 	return _get_reachable_tiles(unit).has(grid_pos)
 
@@ -570,6 +600,7 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	_update_attack_button_state()
 	_update_shove_button_state()
 	_update_charge_button_state()
+	_show_attack_range_tiles(unit)
 	_highlight_active(unit)
 	accept_event()
 
@@ -636,9 +667,13 @@ func _update_unit_info(unit: Dictionary) -> void:
 	var action_state := "READY" if bool(unit.get("has_main_action", true)) else "USED"
 	var bonus_state := "SHOVE" if bool(unit.get("has_bonus_action", true)) else "USED"
 	var skill_part := ""
-	if unit.get("skill", "") == "brutal_charge":
-		var charge_ready := bool(unit.get("has_main_action", true)) and not bool(unit.get("has_moved", false))
-		skill_part = "  SKILL: %s" % ("CHARGE" if charge_ready else "USED")
+	match unit.get("skill", ""):
+		"brutal_charge":
+			var charge_ready := bool(unit.get("has_main_action", true)) and not bool(unit.get("has_moved", false))
+			skill_part = "  SKILL: %s" % ("CHARGE" if charge_ready else "USED")
+		"marksman":
+			var atk_ready := bool(unit.get("has_main_action", true))
+			skill_part = "  SKILL: MARKSMAN (RANGE 2)%s" % ("" if atk_ready else "  ACTION USED")
 	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: %s%s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
@@ -653,6 +688,7 @@ func _start_turn() -> void:
 
 	_clear_target_selection(false)
 	_clear_move_tiles()
+	_clear_attack_range_tiles()
 	var unit: Dictionary = _initiative[_turn_index]
 	_reset_turn_state(unit)
 	_update_objective_label()
@@ -668,6 +704,7 @@ func _start_turn() -> void:
 	_update_charge_button_state()
 	if is_player_turn:
 		_show_move_tiles(unit)
+		_show_attack_range_tiles(unit)
 
 	if not is_player_turn:
 		await get_tree().create_timer(0.6).timeout
@@ -1178,6 +1215,7 @@ func _show_result(won: bool) -> void:
 	_btn_shove.disabled = true
 	_btn_pass.disabled = true
 	_clear_move_tiles()
+	_clear_attack_range_tiles()
 	_clear_target_selection()
 	_result_overlay.visible = true
 

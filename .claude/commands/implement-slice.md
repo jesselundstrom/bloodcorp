@@ -24,6 +24,7 @@ Use subagents when useful:
 - `haiku-code-reader` for reference tracing and diff review.
 
 Update documentation if needed, but only for the implemented slice.
+Use Godot 4.0 MCP for any game development tasks.
 
 After implementation, report:
 
