@@ -36,8 +36,9 @@ const COLOR_OBSTACLE := Color(0.12, 0.09, 0.07, 0.92)
 const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.85)
 const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
 const COLOR_MARK := Color(0.8, 0.0, 1.0, 1.0)
-const MARK_BONUS := 2
-const FLANK_BONUS := 3
+const PROFICIENCY_BONUS := 2  # recruit tier; +3 veteran / +4 champion once rank field lands
+const MELEE_DAMAGE_DIE := 6   # 1d6 placeholder until weapon system
+const RANGED_DAMAGE_DIE := 8  # 1d8 placeholder for Marksman
 
 # Midfield cols 2-4 only; avoids player deployment (cols 0-1) and enemy (cols 5-6)
 const OBSTACLE_POSITIONS: Array = [
@@ -378,13 +379,76 @@ func _style_mark_button() -> void:
 	_btn_mark.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 
+func _stat_mod(score: int) -> int:
+	return floori((score - 10) / 2.0)
+
+
+func _roll_die(sides: int) -> int:
+	return randi_range(1, sides)
+
+
+func _roll_d20(advantage: bool) -> int:
+	var r1 := _roll_die(20)
+	if not advantage:
+		return r1
+	return maxi(r1, _roll_die(20))
+
+
+func _attack_stat_mod(attacker: Dictionary) -> int:
+	if int(attacker.get("attack_range", DEFAULT_ATTACK_RANGE)) > 1:
+		return _stat_mod(int(attacker.get("dexterity", 10)))
+	return _stat_mod(int(attacker.get("strength_score", 10)))
+
+
+func _attack_bonus(attacker: Dictionary) -> int:
+	return _attack_stat_mod(attacker) + PROFICIENCY_BONUS
+
+
+func _damage_die(attacker: Dictionary) -> int:
+	return RANGED_DAMAGE_DIE if int(attacker.get("attack_range", DEFAULT_ATTACK_RANGE)) > 1 else MELEE_DAMAGE_DIE
+
+
+func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: String) -> bool:
+	var advantage := _is_flanked(attacker, target) or (target == _marked_unit)
+	var nat := _roll_d20(advantage)
+	var total := nat + _attack_bonus(attacker)
+	var dc := int(target.get("defense_class", 10))
+	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
+	var adv_tag := "  [color=#ffaa00][ADV][/color]" if advantage else ""
+
+	if total < dc:
+		_log("%s%s[/color] missed %s%s[/color]  [color=#888888](%d vs DC %d)[/color]%s" % [
+			attacker_color, attacker["name"], target_color, target["name"], total, dc, adv_tag
+		])
+		return false
+
+	var is_crit := nat == 20
+	var die := _damage_die(attacker)
+	var dice_count := 2 if is_crit else 1
+	var dmg := 0
+	for _i in range(dice_count):
+		dmg += _roll_die(die)
+	dmg += _attack_stat_mod(attacker)
+	dmg = maxi(1, dmg)
+
+	var crit_tag := "  [color=#ff2244][CRIT!][/color]" if is_crit else ""
+	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg  [color=#888888](%d vs DC %d)[/color]%s%s" % [
+		attacker_color, attacker["name"], target_color, target["name"],
+		dmg, total, dc, adv_tag, crit_tag
+	])
+	return await _apply_damage(target, dmg)
+
+
 func _build_units() -> void:
 	for i in range(GameState.roster.size()):
 		var g: Dictionary = GameState.roster[i].duplicate()
 		g["team"] = "player"
 		g["is_mark"] = false
 		g["grid_pos"] = Vector2i(i % 2, floori(i / 2.0))
-		g["hp_max"] = 20 + g["armor"] * 2
+		var con_mod: int = _stat_mod(int(g.get("constitution", 10)))
+		var dex_mod: int = _stat_mod(int(g.get("dexterity", 10)))
+		g["hp_max"] = 8 + con_mod
+		g["defense_class"] = 10 + dex_mod + int(g.get("armor", 0))
 		g["hp_current"] = g["hp_max"]
 		g["sprite_col"] = i % (SPRITE_COLS * SPRITE_ROWS)
 		g["rect_node"] = null
@@ -413,17 +477,26 @@ func _build_units() -> void:
 			"strength": randi_range(1, 10),
 			"speed": randi_range(1, 10),
 			"armor": randi_range(1, 10),
+			"strength_score": randi_range(8, 18),
+			"dexterity": randi_range(8, 18),
+			"constitution": randi_range(8, 18),
+			"intelligence": randi_range(8, 18),
+			"charisma": randi_range(8, 18),
 			"team": "enemy",
 			"is_mark": mark_name != "" and name_pool[i] == mark_name,
 			"grid_pos": Vector2i(GRID_COLS - 1 - (i % 2), floori(i / 2.0)),
 			"hp_max": 0,
 			"hp_current": 0,
+			"defense_class": 0,
 			"sprite_col": i % (SPRITE_COLS * SPRITE_ROWS),
 			"rect_node": null,
 			"border_nodes": [],
 			"hp_bar_node": null,
 		}
-		e["hp_max"] = 20 + int(e["armor"]) * 2
+		var e_con_mod: int = _stat_mod(int(e["constitution"]))
+		var e_dex_mod: int = _stat_mod(int(e["dexterity"]))
+		e["hp_max"] = 8 + e_con_mod
+		e["defense_class"] = 10 + e_dex_mod + int(e["armor"])
 		e["hp_current"] = e["hp_max"]
 		_add_combat_state(e)
 		_units.append(e)
@@ -1058,19 +1131,7 @@ func _on_charge() -> void:
 
 
 func _apply_attack_direct(attacker: Dictionary, target: Dictionary) -> void:
-	var base_damage: int = maxi(1, int(attacker["strength"]) - int(target["armor"]))
-	var flanked := _is_flanked(attacker, target)
-	var damage := base_damage + (FLANK_BONUS if flanked else 0)
-	var attacker_color := "[color=#ffaa00]"
-	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
-	var flank_tag := "  [color=#ffaa00][FLANK +%d][/color]" % FLANK_BONUS if flanked else ""
-	var mark_tag := "  [color=#cc44ff][MARKED +%d][/color]" % MARK_BONUS if target == _marked_unit else ""
-	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg%s%s" % [
-		attacker_color, attacker["name"],
-		target_color, target["name"],
-		damage, flank_tag, mark_tag
-	])
-	var killed := await _apply_damage(target, damage)
+	var killed := await _resolve_attack(attacker, target, "[color=#ffaa00]")
 	if killed and _check_battle_end():
 		return
 	_advance_turn()
@@ -1219,8 +1280,7 @@ func _get_enemy_move_destination(unit: Dictionary, target: Dictionary) -> Vector
 
 
 func _apply_damage(target: Dictionary, amount: int) -> bool:
-	var mark_bonus := MARK_BONUS if target == _marked_unit else 0
-	target["hp_current"] = maxi(0, int(target["hp_current"]) - (amount + mark_bonus))
+	target["hp_current"] = maxi(0, int(target["hp_current"]) - amount)
 	if target["hp_bar_node"] != null:
 		(target["hp_bar_node"] as ProgressBar).value = target["hp_current"]
 	_flash_hit(target)
@@ -1253,19 +1313,8 @@ func _is_flanked(attacker: Dictionary, target: Dictionary) -> bool:
 
 
 func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
-	var base_damage: int = maxi(1, int(attacker["strength"]) - int(target["armor"]))
-	var flanked := _is_flanked(attacker, target)
-	var damage := base_damage + (FLANK_BONUS if flanked else 0)
 	var attacker_color := "[color=#00ffcc]" if attacker["team"] == "player" else "[color=#ff2244]"
-	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
-	var flank_tag := "  [color=#ffaa00][FLANK +%d][/color]" % FLANK_BONUS if flanked else ""
-	var mark_tag := "  [color=#cc44ff][MARKED +%d][/color]" % MARK_BONUS if target == _marked_unit else ""
-	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg%s%s" % [
-		attacker_color, attacker["name"],
-		target_color, target["name"],
-		damage, flank_tag, mark_tag
-	])
-	var killed := await _apply_damage(target, damage)
+	var killed := await _resolve_attack(attacker, target, attacker_color)
 	if killed and _check_battle_end():
 		return
 	_advance_turn()

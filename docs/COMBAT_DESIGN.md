@@ -22,8 +22,8 @@ The tactical combat foundation is live in `scripts/Battle.gd`:
 - Sponsor objectives, kill tracking, target mark highlighting, and result rewards/penalties are all wired into battle flow.
 - Action bar shows MOVE / ACTION / BONUS state per unit.
 - Style score (`_style_score`) is displayed on all three contract types; Execution Mark kills trigger `★ THE CROWD ROARS! ★` log flair.
-- **Current damage formula (legacy placeholder):** `base_damage = max(1, attacker.strength - target.armor)` + `FLANK_BONUS (3)` if flanked + `MARK_BONUS (2)` if target is marked.
-- **Current HP formula (legacy placeholder):** `max_hp = 20 + armor * 2`.
+- **Attack resolution:** `1d20 + attack_bonus vs target.defense_class`. Miss = no damage. Hit = `weapon_die + stat_mod` (min 1). Crit (nat 20) = double dice. Proficiency +2 (recruit; +3 veteran / +4 champion deferred to rank system). Melee: 1d6 + STR_mod. Ranged (Marksman): 1d8 + DEX_mod. Flanking or Execution Mark → advantage (2d20 take high, binary — does not stack).
+- **Current HP formula:** `max_hp = 8 + CON_mod`.
 
 Three character skills are live: Brutal Charge (main action), Marksman (passive range upgrade), Execution Mark (bonus action). Assignment is currently hardcoded by roster index — a data-driven refactor is the active task (see TASKS.md).
 
@@ -38,7 +38,7 @@ Each active gladiator supports:
 
 The speed-sorted initiative system is the live foundation. Bonus action selection UI is being unified as part of the skills refactor.
 
-## D&D-Style Hit/Miss/Damage Resolution *(design intent — not yet implemented)*
+## D&D-Style Hit/Miss/Damage Resolution *(implemented)*
 
 The legacy `STR - ARM` formula is a placeholder. The intended system uses dice rolls and gladiator stat blocks, similar to D&D 5e but tuned for a fast gladiator game.
 
@@ -131,9 +131,7 @@ Management should show what a gladiator can do before deployment. Battle surface
 ## Next Implementation Targets
 
 1. **Data-driven skill refactor** *(active — see TASKS.md Now)*: replace hardcoded skill assignment with a skill data dict; three existing skills refactored with no behavior change; unified bonus action selection UI.
-2. **Stat block wiring**: add STR/DEX/CON/INT/CHA to gladiator data; compute modifiers; replace the legacy HP formula.
-3. **D&D-style attack resolution**: replace `STR - ARM` with `1d20 + attack_bonus vs DC`; implement hit/miss/crit; wire flanking to advantage.
-4. **Damage dice**: replace flat damage with `weapon_dice + stat_mod`; crit doubles dice.
-5. **4th skill archetype + skill info UI**: new archetype using the data model; skill names, costs, and cooldowns shown in battle UI per unit.
-6. **Terrain / obstacle tiles**: block movement, create stronger positioning choices.
-7. **Crowd/style scoring hooks via CHA**: sponsors can reference style beyond kills, rounds, and marked targets.
+2. **4th skill archetype + skill info UI**: new archetype using the data model; skill names, costs, and cooldowns shown in battle UI per unit.
+3. **Rank / tier system**: gladiator rank (recruit/veteran/champion) unlocks proficiency +3/+4 and stat progression; prerequisite for equipment system.
+4. **Terrain / obstacle tiles**: block movement, create stronger positioning choices.
+5. **Crowd/style scoring hooks via CHA**: sponsors can reference style beyond kills, rounds, and marked targets.

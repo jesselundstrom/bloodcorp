@@ -10,26 +10,13 @@
 
 ## Now
 
-- **Gladiator stat block** - Add STR/DEX/CON/INT/CHA to gladiator data dict; compute stat modifiers (`floor((stat-10)/2)`); replace legacy HP formula (`20 + armor*2`) with `8 + CON_mod`. Gate for D&D-style resolution.
-  - [ ] Stat fields added to gladiator dicts in GameState and Management recruit pool
-  - [ ] `_build_units()` reads stat block and computes modifiers
-  - [ ] HP uses CON_mod formula; displayed correctly on HP bars
-  - [ ] Defense Class computed from DEX_mod + armor_bonus
-
-## Next
-
-- **D&D-style attack resolution** - Replace `max(1, STR - ARM)` placeholder with `1d20 + attack_bonus vs target.DC`. Hit/miss/crit. Flanking → advantage (2d20 high). Execution Mark → advantage. Damage dice + stat mod. See COMBAT_DESIGN.md for full spec.
-  - [ ] Attack roll function: `1d20 + attack_bonus >= target.DC`
-  - [ ] Miss: no damage; hit: damage dice + stat_mod; crit (natural 20): double dice
-  - [ ] Flanking uses advantage (2d20 take high) instead of flat +3
-  - [ ] Execution Mark uses advantage instead of flat +2
-  - [ ] Proficiency bonus tier: +2 recruit / +3 veteran / +4 champion
-
 - **Character-specific skills — data-driven refactor** - Replace hardcoded roster-index skill assignment with a skill data structure. Include `attack_stat` field (STR/DEX/INT) now that the stat block exists. Gating dependency for 4th archetype, skill UI, unified bonus UI, and equipment/augmentation hooks.
   - [ ] Define skill data dict (name, description, action_cost, cooldown, valid_targets, attack_stat)
   - [ ] Refactor `_build_units()` to read from skill data instead of hardcoded index logic
   - [ ] Three existing skills (Brutal Charge, Marksman, Execution Mark) produce identical in-battle behavior — pure refactor, no behavior change
   - [ ] Unified bonus action selection UI (natural payoff once multiple bonus actions share a model)
+
+## Next
 
 - **4th skill archetype + skill info UI** - New archetype using the data model above; skill details surfaced to player.
   - [ ] 4th skill archetype implemented
@@ -59,3 +46,5 @@
 - **Action economy** - `has_moved/has_main_action/has_bonus_action` per unit with turn reset; attacks consume main action; Shove (all units) and Execution Mark (roster skill) as bonus actions; Brutal Charge as skill-gated main action; Marksman as passive range upgrade; action bar shows MOVE/ACTION/BONUS state. *(Item use and defensive stance deferred — no backing data; unified bonus UI deferred to skills refactor)*
 - **Style scoring display** - `_style_score` shown on all three contract types; `★ THE CROWD ROARS! ★` log flair on Execution Mark kills
 - **Pixel font** - m5x7 pixel font imported; applied globally via `assets/theme/bloodcorp.tres` set as `gui/theme/custom` in project settings
+- **Gladiator stat block** - STR_score/DEX/CON/INT/CHA (8-18) added to all gladiator dicts; `_stat_mod()` helper uses float-floor; `hp_max = 8 + CON_mod`; `defense_class = 10 + DEX_mod + armor`; old saves backfilled with 10 defaults
+- **D&D-style attack resolution** - `1d20 + attack_bonus vs DC`; hit/miss/crit (nat 20 = double dice); flanking + mark → advantage (binary, 2d20 take high); `1d6+STR_mod` melee / `1d8+DEX_mod` ranged; proficiency +2 (recruit placeholder); min 1 damage on hit; `MARK_BONUS`/`FLANK_BONUS` removed; mark now advantage-only (no bonus damage)
