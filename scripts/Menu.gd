@@ -36,7 +36,7 @@ func _apply_button_styles() -> void:
 		btn.add_theme_stylebox_override("pressed", pressed_style)
 
 func _on_new_game() -> void:
-	pass  # TODO: transition to game setup scene
+	get_tree().change_scene_to_file("res://scenes/Management.tscn")
 
 func _on_continue() -> void:
 	pass  # TODO: load save file

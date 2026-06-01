@@ -1,0 +1,92 @@
+[gd_scene format=3 uid="uid://b2mh0mcelxbfj"]
+
+[ext_resource type="Script" path="res://scripts/Management.gd" id="1_uuohh"]
+
+[node name="Management" type="Control" unique_id=240427204]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_uuohh")
+
+[node name="Background" type="ColorRect" parent="." unique_id=1888912883]
+layout_mode = 0
+color = Color(0.039, 0.039, 0.059, 1)
+
+[node name="Scanlines" type="ColorRect" parent="." unique_id=474434506]
+layout_mode = 0
+mouse_filter = 2
+color = Color(0, 0, 0, 0)
+
+[node name="Layout" type="VBoxContainer" parent="." unique_id=1699654777]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+
+[node name="TopBar" type="HBoxContainer" parent="Layout" unique_id=1258385615]
+layout_mode = 2
+
+[node name="LblTitle" type="Label" parent="Layout/TopBar" unique_id=132682809]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.133, 0.267, 1)
+theme_override_font_sizes/font_size = 28
+text = "MANAGEMENT"
+
+[node name="LblCredits" type="Label" parent="Layout/TopBar" unique_id=1163376456]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.667, 0, 1)
+theme_override_font_sizes/font_size = 20
+text = "CREDITS: 1000"
+horizontal_alignment = 2
+
+[node name="PanelsRow" type="HBoxContainer" parent="Layout" unique_id=1108497056]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RosterPanel" type="VBoxContainer" parent="Layout/PanelsRow" unique_id=162045945]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblRosterHeader" type="Label" parent="Layout/PanelsRow/RosterPanel" unique_id=1365266390]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "YOUR ROSTER"
+
+[node name="RosterList" type="VBoxContainer" parent="Layout/PanelsRow/RosterPanel" unique_id=580640511]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Divider" type="VSeparator" parent="Layout/PanelsRow" unique_id=850427466]
+layout_mode = 2
+
+[node name="RecruitsPanel" type="VBoxContainer" parent="Layout/PanelsRow" unique_id=666808799]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblRecruitsHeader" type="Label" parent="Layout/PanelsRow/RecruitsPanel" unique_id=1175519724]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 1, 0.8, 1)
+theme_override_font_sizes/font_size = 18
+text = "AVAILABLE RECRUITS"
+
+[node name="RecruitList" type="VBoxContainer" parent="Layout/PanelsRow/RecruitsPanel" unique_id=1002461656]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BottomBar" type="HBoxContainer" parent="Layout" unique_id=1303578230]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnDeploy" type="Button" parent="Layout/BottomBar" unique_id=1811402335]
+custom_minimum_size = Vector2(300, 50)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 20
+disabled = true
+text = "DEPLOY TO ARENA"
