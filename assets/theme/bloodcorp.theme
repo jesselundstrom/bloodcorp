@@ -1,0 +1,7 @@
+[gd_resource type="Theme" format=3 uid="uid://bloodcorp_theme"]
+
+[ext_resource type="FontFile" path="res://assets/fonts/m5x7.ttf" id="1_m5x7"]
+
+[resource]
+default_font = ExtResource("1_m5x7")
+default_font_size = 16

@@ -16,7 +16,6 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 
 6. **Gladiator pixel sprites** - Improve the current `gladiators.png` TextureRect/AtlasTexture setup into a future-ready Sprite2D/AnimatedSprite2D pattern with clearer placeholder pixel art and animation hooks.
 
-7. **Pixel font** - Import a pixel/bitmap font and apply it globally. `assets/fonts/` is empty. Affects all labels across Menu, Management, and Battle.
 
 8. **Game-over / campaign structure** - Lose condition when credits drop to 0 (or below hire cost). Day/season loop with escalating enemy stat scaling. A "next contract" flow after each win.
 
@@ -38,3 +37,4 @@ Agent instructions: When tasks complete, move them to **Done**. Summarise batche
 - **Sponsor system** - SponsorSelect screen; three contract types (kills, style/rounds, target priority); dynamic reward/penalty; mark highlighting in arena
 - **Tactical movement foundation** - Battle grid expanded to 7x5; units get move/action state; player turns support clickable movement and melee-only attacks; enemy AI advances toward nearest target; SponsorSelect double-parent UI bug fixed
 - **Tactical combat iteration** - Action bar shows MOVE/ACTION/BONUS state; 5 midfield obstacle tiles block movement for both player and enemy AI; Shove bonus action pushes adjacent enemies one tile away and is consumed once per turn; Execution Mark (roster[2]) marks a wounded adjacent enemy as a bonus action — +2 dmg and style point on kill
+- **Pixel font** - m5x7 pixel font imported; applied globally via `assets/theme/bloodcorp.theme` set as `gui/theme/custom` in project settings

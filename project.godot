@@ -24,6 +24,10 @@ GameState="*res://scripts/GameState.gd"
 
 enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg")
 
+[gui]
+
+theme/custom="res://assets/theme/bloodcorp.theme"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
