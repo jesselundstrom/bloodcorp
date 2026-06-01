@@ -6,7 +6,7 @@ $ARGUMENTS
 
 Use this workflow for planning:
 
-- Use Opus 4.8 High as the orchestrator/planner when available.
+- Use Opus 4.8 High as the orchestrator/planner.
 - Use Haiku 4.5 High as a read-only code reader when useful.
 - Do not implement during this command.
 - Inspect relevant files before proposing changes.

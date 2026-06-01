@@ -6,8 +6,8 @@ $ARGUMENTS
 
 Use this workflow:
 
-- Use Opus 4.8. High as the orchestrator when available.
-- Use Sonnet 4.6 High as the coder/worker/reviewer when available.
+- Use Opus 4.8. High as the orchestrator.
+- Use Sonnet 4.6 High as the coder/worker/reviewer.
 - Use Haiku 4.5 as a code reader when useful.
 - Implement only the approved slice.
 - Keep the diff small.
