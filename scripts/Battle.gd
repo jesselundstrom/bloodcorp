@@ -409,7 +409,7 @@ func _damage_die(attacker: Dictionary) -> int:
 
 
 func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: String) -> bool:
-	var advantage := _is_flanked(attacker, target) or (target == _marked_unit)
+	var advantage: bool = _is_flanked(attacker, target) or (target == _marked_unit)
 	var nat := _roll_d20(advantage)
 	var total := nat + _attack_bonus(attacker)
 	var dc := int(target.get("defense_class", 10))
