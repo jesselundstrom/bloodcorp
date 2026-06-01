@@ -5,7 +5,7 @@ Read `CLAUDE.md` before making code changes.
 
 ## Codex Notes
 
-- Use Godot MCP tools when working on Godot scenes, nodes, scripts, or runtime verification.
+- Always use Godot MCP tools when applicable for Godot work: scene/node changes, script work that benefits from editor context, asset/resource inspection, and runtime verification.
 - Keep implementation slices small and focused.
 - Prefer the existing project style over new abstractions.
 - Keep `CLAUDE.md`, `docs/TASKS.md`, and relevant design docs up to date when code changes alter behavior, architecture, workflow, or completed task status.

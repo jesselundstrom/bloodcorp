@@ -22,7 +22,7 @@ The `addons/godot_ai` plugin runs a local MCP server that lets AI assistants ins
 
 **Do not modify files under `addons/godot_ai/`** - this is a third-party plugin. Its source is at github.com/hi-godot/godot-ai.
 
-When connected via MCP, prefer Godot MCP tools for scenes, nodes, scripts, and runtime verification. Direct file edits are acceptable for focused script/doc changes, but scene and node mutations should go through the editor when practical.
+When connected via MCP, always use Godot MCP tools when applicable for Godot work: scene/node changes, script work that benefits from editor context, asset/resource inspection, and runtime verification. Direct file edits are acceptable for focused script/doc changes, but scene and node mutations should go through the editor when practical.
 
 ## Game: Bloodcorp
 
@@ -77,7 +77,7 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 
 ### Development Style
 
-- Use Godot MCP tools to create nodes and scenes in the live editor.
+- Always use Godot MCP tools when applicable for Godot scenes, nodes, scripts, assets/resources, and runtime verification.
 - Keep scripts modular - one responsibility per file.
 - Use `GameState.gd` as the global Autoload for persistent data.
 - Keep implementation slices small and focused.
