@@ -10,10 +10,6 @@
 
 ## Now
 
-- **Casualty Resolution + injuries** - Change 0 HP from "dead" to "downed". Downed player gladiators leave the current battle but survive to a post-battle casualty roll (mostly injury, rarely death; enemies just die). Data-driven injury model with stat/HP penalties, recovery over matches, and instant med-bay heal for credits. Concurrent-injury cap. Foundational to the churn feel; de-risks d20 variance. See `COMBAT_DESIGN.md` "Casualty Resolution".
-
-## Next
-
 - **Service clock + development ticks** - Per-gladiator Service counter (matches fought), grouped into Seasons. Post-battle development tick that rolls stat increases toward a hidden `ceiling` per current stage. Player sees stats rise; ceiling stays hidden. GameState's existing day/round counter can seed the Service clock.
 - **Development arc data model** - Hidden `ceiling` + arc shape (when growth is fast, when peak hits, when decline starts) + career stage (Prospect/Rising/Prime/Decline/Spent). Stages drive growth, decline erosion, and casualty risk. Ceiling correlates *loosely* with starting stats.
 
@@ -48,3 +44,4 @@
 - **4th skill archetype + skill info UI** - Shield Bash bonus-action identity skill; HUD shows cost type label for all units
 - **Arena planning feel** - grid expanded to 9x6; three arena layouts (blockers, hazards, spawns); path-aware BFS movement; hazard shoves deal 2 damage + STYLE +1
 - **Design docs** - `GAME_DESIGN.md` (broad), `COMBAT_DESIGN.md` (battle), `TASKS.md` (backlog); churn direction, injury-over-death, hidden development arc, Service/Season clock, and Variance Principle locked in the decision log *(2026-06-02)*
+- **Casualty Resolution + injuries** - 0 HP → downed (not dead) for player gladiators; enemies die as before. Post-battle d10 casualty roll: 1=death, 2-4=serious injury, 5-10=minor injury. `InjuryData.gd` defines three data-driven injuries (Broken Arm, Damaged Optic, Cracked Plating) with stat/HP penalties and 3-match recovery. Injuries show on roster cards in Management. *(2026-06-02)*

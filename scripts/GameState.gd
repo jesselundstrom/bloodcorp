@@ -1,6 +1,7 @@
 extends Node
 
 const MAX_ROSTER_SIZE := 9
+const MAX_INJURIES := 3
 const STARTING_CREDITS := 1000
 const SAVE_PATH := "user://savegame.json"
 
@@ -22,6 +23,46 @@ func add_gladiator(gladiator) -> bool:
 
 func remove_gladiator(gladiator) -> void:
 	roster.erase(gladiator)
+
+
+func kill_gladiator(index: int) -> void:
+	if index >= 0 and index < roster.size():
+		roster.remove_at(index)
+
+
+func apply_injury(index: int, injury_key: String, recovery_multiplier: int = 1) -> void:
+	if index < 0 or index >= roster.size():
+		return
+	var g: Dictionary = roster[index]
+	if not g.has("injuries"):
+		g["injuries"] = []
+	if g["injuries"].size() >= MAX_INJURIES:
+		# TODO: cap exceeded — spike death chance when career stage system exists
+		return
+	var recovery: int = InjuryData.INJURIES[injury_key]["recovery_matches"] * recovery_multiplier
+	g["injuries"].append({"key": injury_key, "remaining": recovery})
+
+
+func tick_injuries() -> void:
+	for g in roster:
+		if not g.has("injuries"):
+			continue
+		var kept: Array = []
+		for inj in g["injuries"]:
+			inj["remaining"] -= 1
+			if inj["remaining"] > 0:
+				kept.append(inj)
+		g["injuries"] = kept
+
+
+func heal_injury_immediate(roster_index: int, injury_index: int) -> void:
+	# TODO: med bay — deduct credits, remove injury, refresh Management UI
+	if roster_index < 0 or roster_index >= roster.size():
+		return
+	var g: Dictionary = roster[roster_index]
+	if not g.has("injuries") or injury_index < 0 or injury_index >= g["injuries"].size():
+		return
+	g["injuries"].remove_at(injury_index)
 
 
 func set_sponsor(sponsor: Dictionary) -> void:
@@ -77,6 +118,8 @@ func load_game() -> bool:
 				for stat in ["strength_score", "dexterity", "constitution", "intelligence", "charisma"]:
 					if not entry.has(stat):
 						entry[stat] = 10
+				if not entry.has("injuries"):
+					entry["injuries"] = []
 				roster.append(entry)
 	var saved_sponsor = parsed.get("active_sponsor", {})
 	active_sponsor = saved_sponsor if saved_sponsor is Dictionary else {}

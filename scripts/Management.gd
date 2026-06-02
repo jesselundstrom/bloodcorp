@@ -107,6 +107,21 @@ func _make_card(data: Dictionary, is_roster: bool) -> PanelContainer:
 		bar.show_percentage = false
 		row.add_child(bar)
 
+	# Injuries (roster only)
+	if is_roster:
+		var injuries: Array = data.get("injuries", [])
+		if injuries.size() > 0:
+			var inj_box := VBoxContainer.new()
+			inj_box.add_theme_constant_override("separation", 2)
+			vbox.add_child(inj_box)
+			for inj in injuries:
+				var inj_data: Dictionary = InjuryData.INJURIES.get(inj.get("key", ""), {})
+				var inj_lbl := Label.new()
+				inj_lbl.text = "%s (%d)" % [inj_data.get("display_name", inj.get("key", "?")), inj.get("remaining", 0)]
+				inj_lbl.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
+				inj_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_MD)
+				inj_box.add_child(inj_lbl)
+
 	# Action button
 	var btn := Button.new()
 	if is_roster:

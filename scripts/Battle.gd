@@ -90,6 +90,7 @@ var _sprite_sheet: Texture2D = null
 var _combat_log: RichTextLabel = null
 var _kills: int = 0
 var _mark_killed: bool = false
+var _downed_player_indices: Array = []
 var _sponsor: Dictionary = {}
 var _marked_unit = null
 var _style_score: int = 0
@@ -480,10 +481,18 @@ func _build_units() -> void:
 		var g: Dictionary = GameState.roster[i].duplicate()
 		g["team"] = "player"
 		g["is_mark"] = false
+		g["roster_index"] = i
 		g["grid_pos"] = _spawn_position("player_spawns", i, Vector2i(i % 2, floori(i / 2.0)))
+		# Apply injury stat penalties before deriving mods.
+		var hp_pct_pen: float = 0.0
+		for inj in g.get("injuries", []):
+			var inj_data: Dictionary = InjuryData.INJURIES.get(inj["key"], {})
+			for stat_key in inj_data.get("stat_penalties", {}).keys():
+				g[stat_key] = int(g.get(stat_key, 10)) + int(inj_data["stat_penalties"][stat_key])
+			hp_pct_pen += float(inj_data.get("hp_pct_penalty", 0.0))
 		var con_mod: int = _stat_mod(int(g.get("constitution", 10)))
 		var dex_mod: int = _stat_mod(int(g.get("dexterity", 10)))
-		g["hp_max"] = 8 + con_mod
+		g["hp_max"] = maxi(1, int(round((8 + con_mod) * (1.0 - hp_pct_pen))))
 		g["defense_class"] = 10 + dex_mod + int(g.get("armor", 0))
 		g["hp_current"] = g["hp_max"]
 		g["sprite_col"] = i % (SPRITE_COLS * SPRITE_ROWS)
@@ -1436,9 +1445,8 @@ func _apply_damage(target: Dictionary, amount: int) -> bool:
 		(target["hp_bar_node"] as ProgressBar).value = target["hp_current"]
 	_flash_hit(target)
 	if int(target["hp_current"]) <= 0:
-		var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
-		_log("%s%s[/color] [color=#888888]was eliminated[/color]" % [target_color, target["name"]])
 		if str(target["team"]) == "enemy":
+			_log("[color=#ff2244]%s[/color] [color=#888888]was eliminated[/color]" % target["name"])
 			_kills += 1
 			if target.get("is_mark", false):
 				_mark_killed = true
@@ -1447,6 +1455,11 @@ func _apply_damage(target: Dictionary, amount: int) -> bool:
 				_log("[color=#cc44ff]EXECUTION — STYLE +1[/color]")
 				_log("[color=#ffaa00]★ THE CROWD ROARS! ★[/color]")
 			_update_objective_label()
+		else:
+			_log("[color=#00ffcc]%s[/color] [color=#ffaa00]is DOWNED[/color]" % target["name"])
+			var ridx: int = int(target.get("roster_index", -1))
+			if ridx >= 0 and not _downed_player_indices.has(ridx):
+				_downed_player_indices.append(ridx)
 		await get_tree().create_timer(0.25).timeout
 		_remove_dead(target)
 		return true
@@ -1576,7 +1589,41 @@ func _show_result(won: bool) -> void:
 		_lbl_contract.text = "%s CONTRACT FAILED  %s" % [sponsor_name, contract_detail]
 		GameState.credits -= penalty
 		_lbl_reward.text = "-%d CREDITS" % penalty
+	_resolve_casualties()
+	GameState.tick_injuries()
 	GameState.save_game()
+
+
+func _resolve_casualties() -> void:
+	if _downed_player_indices.is_empty():
+		return
+	# Process descending so kills don't shift remaining indices.
+	var sorted_indices: Array = _downed_player_indices.duplicate()
+	sorted_indices.sort()
+	sorted_indices.reverse()
+	var summary_lines: Array = []
+	for idx in sorted_indices:
+		if idx < 0 or idx >= GameState.roster.size():
+			continue
+		var gname: String = str(GameState.roster[idx].get("name", "???"))
+		var roll: int = randi_range(1, 10)
+		if roll == 1:
+			GameState.kill_gladiator(idx)
+			summary_lines.append("[color=#ff2244]%s DIED[/color] (roll %d)" % [gname, roll])
+		elif roll <= 4:
+			var key: String = InjuryData.random_serious()
+			GameState.apply_injury(idx, key, 2)
+			var display: String = InjuryData.INJURIES[key]["display_name"]
+			summary_lines.append("[color=#ffaa00]%s — SERIOUS INJURY: %s[/color] (roll %d)" % [gname, display, roll])
+		else:
+			var key: String = InjuryData.random_minor()
+			GameState.apply_injury(idx, key)
+			var display: String = InjuryData.INJURIES[key]["display_name"]
+			summary_lines.append("[color=#ffaa00]%s — INJURED: %s[/color] (roll %d)" % [gname, display, roll])
+	if summary_lines.size() > 0 and _combat_log != null:
+		_log("[color=#888888]— CASUALTY REPORT —[/color]")
+		for line in summary_lines:
+			_log(line)
 
 
 func _on_return_to_base() -> void:

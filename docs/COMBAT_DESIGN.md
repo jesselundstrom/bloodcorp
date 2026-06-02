@@ -71,30 +71,34 @@ The current combat resolution uses dice rolls and gladiator stat blocks, similar
 
 The d20 is intentionally swingy, which is fine *because* downed gladiators usually survive (see Casualty Resolution). The dice are paired with player control through positioning, action economy, and target choice — never let a high-variance outcome land without a decision the player could have made differently.
 
-## Casualty Resolution *(planned — core to churn)*
+## Casualty Resolution *(implemented)*
 
 When a unit reaches 0 HP it is **downed**, not instantly killed.
 
 - A **downed** unit is removed from the current battle (out of the fight) but is not yet dead.
-- **Enemies** are disposable NPCs: a downed enemy can simply be treated as killed for objective/kill-count purposes.
-- **Player gladiators** survive to a post-battle **casualty roll**:
-  - Most downs → an **injury** (recoverable; see below).
-  - A small chance → **death** (permanent removal from the roster).
-- **Stage modifies the roll.** Prospect/Rising/Prime gladiators rarely die. **Decline**-stage gladiators have a higher death/serious-injury chance — natural pressure toward retirement.
-- **Deliberate gambles override the odds.** A "last contract" deployment (see `GAME_DESIGN.md`) shifts the casualty roll heavily toward death in exchange for a large payout.
+- **Enemies** are disposable NPCs: a downed enemy is killed for objective/kill-count purposes (no change from old behavior).
+- **Player gladiators** survive to a post-battle **casualty roll** resolved in `_resolve_casualties()` (Battle.gd):
+  - d10 roll: **1** = death (permanent roster removal), **2–4** = serious injury, **5–10** = minor injury.
+  - Stage modifiers are **deferred** — the flat d10 is the first-pass roll. When the career-stage system lands, stage will shift these odds.
+  - "Last contract" gamble (deliberate death odds shift) is also deferred.
+- Casualty report lines are logged to the combat log and visible on the result overlay.
 
-### Injuries
+### Injuries *(implemented)*
 
-Injuries are data-driven, apply stat/HP penalties, and recover over a number of matches or instantly in the med bay for credits. First-pass set (tunable):
+Injuries are data-driven in `scripts/InjuryData.gd`, apply stat/HP penalties, and recover over a number of matches (or instantly via med bay — deferred).
 
 | Injury | Effect | Recovery |
 |--------|--------|----------|
-| Broken Arm | -2 STR | a few matches / med bay |
-| Damaged Optic | -2 DEX | a few matches / med bay |
-| Cracked Plating | -1 CON, -10% effective HP | a few matches / med bay |
+| Broken Arm | -2 STR (`strength_score`) | 3 matches |
+| Damaged Optic | -2 DEX (`dexterity`) | 3 matches |
+| Cracked Plating | -1 CON (`constitution`), -10% effective HP | 3 matches |
 
-- A gladiator can carry a limited number of concurrent injuries; exceeding it spikes the casualty roll and pushes toward forced retirement.
-- Carrying injuries into a fight is a player choice (field a wounded asset now, or pay/wait to heal) — this is the decision paired with the injury RNG.
+- Penalties are applied in `_build_units()` before `hp_max`/`defense_class` are derived; `hp_max` floors at 1.
+- `GameState.MAX_INJURIES = 3` caps concurrent injuries; exceeding it silently clamps (spike to death chance is a TODO for the stage system).
+- `GameState.tick_injuries()` decrements recovery counters once per battle (runs in `_show_result` after casualty resolution, before `save_game`).
+- Management roster cards show active injuries with remaining match count in amber.
+- `GameState.heal_injury_immediate()` stub reserves the med-bay API; no UI yet.
+- Carrying injuries into a fight is a player choice — this is the decision paired with the injury RNG.
 
 ## Development Arc Hooks *(planned)*
 

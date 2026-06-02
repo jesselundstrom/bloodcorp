@@ -52,7 +52,9 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 - Battle uses a 9x6 isometric grid with one randomly selected arena layout per battle.
 - Arena layouts define blockers, shove hazards, player spawns, and enemy spawns.
 - Player turns support path-aware clickable movement tiles, one movement, and melee-only basic attacks unless a skill changes range.
-- Battle units currently reserve `move_range`, `attack_range`, `has_moved`, `has_main_action`, and `has_bonus_action`.
+- Battle units currently reserve `move_range`, `attack_range`, `has_moved`, `has_main_action`, `has_bonus_action`, and `roster_index` (links back to `GameState.roster` for casualty resolution).
+- Player gladiators reaching 0 HP are **downed** (removed from battle, survive to post-battle d10 casualty roll); enemies die immediately as before.
+- Post-battle casualty roll: d10 — 1=death, 2–4=serious injury, 5–10=minor injury. Injuries are data-driven in `scripts/InjuryData.gd` and stored as `roster[i]["injuries"]` (array of `{key, remaining}` dicts). `GameState.tick_injuries()` decrements recovery once per battle (in `_show_result`, before `save_game()`).
 - Enemy AI advances toward the nearest living player using reachable movement tiles, then attacks if in range.
 - Shove can push enemies, slam them into walls/blockers/units, or force them into hazards for 2 damage and STYLE +1.
 - Sponsor objectives are tracked during Battle; result rewards/penalties are based on the selected sponsor contract.
@@ -67,7 +69,8 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 - `scenes/Management.tscn` / `scripts/Management.gd` - Roster management, random recruit pool, hire/fire, deploy to sponsor selection.
 - `scenes/SponsorSelect.tscn` / `scripts/SponsorSelect.gd` - Sponsor contract selection before battle.
 - `scenes/Battle.tscn` / `scripts/Battle.gd` - Speed-sorted initiative, isometric movement grid, melee targeting, damage formula (STR - ARM), sponsor tracking, result overlay.
-- `scripts/GameState.gd` - Global Autoload; holds credits, roster array, active_sponsor, current_day, and save/load state.
+- `scripts/GameState.gd` - Global Autoload; holds credits, roster array, active_sponsor, current_day, and save/load state. Injury API: `apply_injury`, `kill_gladiator`, `tick_injuries`, `heal_injury_immediate`.
+- `scripts/InjuryData.gd` - Static data for the three injury types (Broken Arm, Damaged Optic, Cracked Plating); stat penalties, HP penalty, recovery duration.
 
 **Assets:**
 
