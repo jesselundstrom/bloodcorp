@@ -28,6 +28,8 @@ When connected via MCP, always use Godot MCP tools when applicable for Godot wor
 
 A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 
+**Game design source of truth:** see `docs/GAME_DESIGN.md` for broad game vision, player fantasy, core loop, management/sponsor/progression direction, tone, and major design decisions. Keep that file updated when work changes major player-facing game design.
+
 ### Concept
 
 - Player manages a gladiator team sponsored by megacorporations.
@@ -77,10 +79,12 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 
 **Combat design direction:** see `docs/COMBAT_DESIGN.md`
 
+**Game design direction:** see `docs/GAME_DESIGN.md`
+
 ### Development Style
 
 - Always use Godot MCP tools when applicable for Godot scenes, nodes, scripts, assets/resources, and runtime verification.
 - Keep scripts modular - one responsibility per file.
 - Use `GameState.gd` as the global Autoload for persistent data.
 - Keep implementation slices small and focused.
-- Keep `CLAUDE.md`, `docs/TASKS.md`, and relevant design docs up to date when code changes alter behavior, architecture, workflow, or completed task status.
+- Keep `CLAUDE.md`, `docs/GAME_DESIGN.md`, `docs/COMBAT_DESIGN.md`, `docs/TASKS.md`, and relevant design docs up to date when code changes alter behavior, architecture, workflow, design direction, or completed task status.
