@@ -1,5 +1,7 @@
 extends Node
 
+const InjuryData = preload("res://scripts/InjuryData.gd")
+
 const MAX_ROSTER_SIZE := 9
 const MAX_INJURIES := 3
 const STARTING_CREDITS := 1000

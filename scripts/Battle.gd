@@ -1,58 +1,9 @@
 extends Control
 
-class IsoTile:
-	extends Control
-
-	var fill_color: Color = Color(0, 0, 0, 0)
-	var border_color: Color = Color(1, 1, 1, 0)
-	var border_width: float = 2.0
-
-	func setup(p_fill: Color, p_border: Color, p_border_width := 2.0) -> void:
-		fill_color = p_fill
-		border_color = p_border
-		border_width = p_border_width
-		queue_redraw()
-
-	func _draw() -> void:
-		var mid_x := size.x * 0.5
-		var mid_y := size.y * 0.5
-		var points := PackedVector2Array([
-			Vector2(mid_x, 0),
-			Vector2(size.x, mid_y),
-			Vector2(mid_x, size.y),
-			Vector2(0, mid_y),
-		])
-		draw_polygon(points, PackedColorArray([fill_color]))
-		if border_color.a > 0.0 and border_width > 0.0:
-			var outline := PackedVector2Array(points)
-			outline.append(points[0])
-			draw_polyline(outline, border_color, border_width, true)
-
-
-class IsoRing:
-	extends Control
-
-	var ring_color: Color = Color(0, 0, 0, 0)
-	var ring_width: float = 2.0
-
-	func setup(p_color: Color, p_width := 2.0) -> void:
-		ring_color = p_color
-		ring_width = p_width
-		queue_redraw()
-
-	func _draw() -> void:
-		if ring_color.a <= 0.0 or ring_width <= 0.0:
-			return
-		var mid_x := size.x * 0.5
-		var mid_y := size.y * 0.5
-		var points := PackedVector2Array([
-			Vector2(mid_x, 0),
-			Vector2(size.x, mid_y),
-			Vector2(mid_x, size.y),
-			Vector2(0, mid_y),
-			Vector2(mid_x, 0),
-		])
-		draw_polyline(points, ring_color, ring_width, true)
+const InjuryData = preload("res://scripts/InjuryData.gd")
+const BattleIsoTileScene := preload("res://scripts/BattleIsoTile.gd")
+const BattleUnitVisualScene := preload("res://scripts/BattleUnitVisual.gd")
+const BattleCombatEffectScene := preload("res://scripts/BattleCombatEffect.gd")
 
 
 const ENEMY_NAMES := [
@@ -79,6 +30,13 @@ const SPRITE_FRAME_W := 512
 const SPRITE_FRAME_H := 512
 const SPRITE_COLS := 3
 const SPRITE_ROWS := 2
+const ANIMATED_SHEET_PATHS := {
+	"brutal_charge": "res://assets/sprites/gladiators/brutal_charge.png",
+	"marksman": "res://assets/sprites/gladiators/marksman.png",
+	"execution_mark": "res://assets/sprites/gladiators/execution_mark.png",
+	"shield_bash": "res://assets/sprites/gladiators/shield_bash.png",
+	"enemy_bruiser": "res://assets/sprites/gladiators/enemy_bruiser.png",
+}
 
 const COLOR_PLAYER := Color(0.0, 1.0, 0.8, 1.0)
 const COLOR_ENEMY := Color(1.0, 0.133, 0.267, 1.0)
@@ -145,6 +103,7 @@ var _hovered_target = null
 var _move_tiles: Array = []
 var _attack_range_tiles: Array = []
 var _sprite_sheet: Texture2D = null
+var _animated_sheets: Dictionary = {}
 var _combat_log: RichTextLabel = null
 var _kills: int = 0
 var _mark_killed: bool = false
@@ -183,6 +142,7 @@ func _ready() -> void:
 		"penalty": 200,
 	}
 	_sprite_sheet = load(SPRITE_SHEET_PATH) as Texture2D
+	_load_animated_sheets()
 	_select_arena_layout()
 	_apply_styles()
 	_build_units()
@@ -203,6 +163,17 @@ func _ready() -> void:
 	_btn_return_base.pressed.connect(_on_return_to_base)
 	_update_objective_label()
 	_start_turn()
+
+
+func _load_animated_sheets() -> void:
+	_animated_sheets.clear()
+	for archetype: String in ANIMATED_SHEET_PATHS.keys():
+		var path: String = ANIMATED_SHEET_PATHS[archetype]
+		if not ResourceLoader.exists(path):
+			continue
+		var texture := load(path) as Texture2D
+		if texture != null:
+			_animated_sheets[archetype] = texture
 
 
 func _select_arena_layout() -> void:
@@ -229,24 +200,24 @@ func _is_walkable(pos: Vector2i, ignored_unit = null) -> bool:
 
 func _draw_obstacles() -> void:
 	for pos: Vector2i in _layout_positions("hazards"):
-		_draw_terrain_tile(pos, COLOR_HAZARD, COLOR_HAZARD_BORDER)
+		_draw_terrain_tile(pos, COLOR_HAZARD, COLOR_HAZARD_BORDER, BattleIsoTile.VARIANT_HAZARD)
 	for pos: Vector2i in _layout_positions("blockers"):
-		_draw_terrain_tile(pos, COLOR_OBSTACLE, COLOR_OBSTACLE_BORDER)
+		_draw_terrain_tile(pos, COLOR_OBSTACLE, COLOR_OBSTACLE_BORDER, BattleIsoTile.VARIANT_BLOCKER)
 
 
-func _draw_terrain_tile(pos: Vector2i, fill_color: Color, border_color: Color) -> void:
-	var tile := _create_iso_tile_visual(pos, fill_color, border_color)
+func _draw_terrain_tile(pos: Vector2i, fill_color: Color, border_color: Color, variant := BattleIsoTile.VARIANT_MOVE) -> void:
+	var tile := _create_iso_tile_visual(pos, fill_color, border_color, MOVE_TILE_SIZE, variant)
 	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_arena.add_child(tile)
 
 
-func _create_iso_tile_visual(pos: Vector2i, fill_color: Color, border_color: Color, size := MOVE_TILE_SIZE) -> IsoTile:
-	var tile := IsoTile.new()
+func _create_iso_tile_visual(pos: Vector2i, fill_color: Color, border_color: Color, size := MOVE_TILE_SIZE, variant := BattleIsoTile.VARIANT_MOVE) -> BattleIsoTile:
+	var tile := BattleIsoTileScene.new() as BattleIsoTile
 	tile.size = size
 	tile.custom_minimum_size = size
 	tile.position = _iso_to_screen(pos) + (UNIT_SIZE - size) * 0.5
 	tile.z_index = 2
-	tile.setup(fill_color, border_color, 2.0)
+	tile.setup(fill_color, border_color, 2.0, variant)
 	return tile
 
 
@@ -281,6 +252,20 @@ void fragment() {
 	bg.material = mat
 	bg.color = Color(1, 1, 1, 1)  # white so shader drives color
 	bg.visible = true
+
+	if not _arena.has_node("ArenaScanlines"):
+		var scanlines := ColorRect.new()
+		scanlines.name = "ArenaScanlines"
+		scanlines.set_anchors_preset(Control.PRESET_FULL_RECT)
+		scanlines.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		scanlines.z_index = 1
+		var scan_shader := load("res://assets/shaders/scanlines.gdshader") as Shader
+		if scan_shader:
+			var scan_mat := ShaderMaterial.new()
+			scan_mat.shader = scan_shader
+			scan_mat.set_shader_parameter("opacity", 0.035)
+			scanlines.material = scan_mat
+		_arena.add_child(scanlines)
 
 
 func _build_combat_log() -> void:
@@ -496,7 +481,7 @@ func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: S
 		_log("%s%s[/color] missed %s%s[/color]  [color=#888888](%d vs DC %d)[/color]%s" % [
 			attacker_color, attacker["name"], target_color, target["name"], total, dc, adv_tag
 		])
-		await _play_attack_feedback(attacker, target, false, 0)
+		await _play_attack_feedback(attacker, target, false, 0, false)
 		return false
 
 	var is_crit := nat == 20
@@ -513,7 +498,7 @@ func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: S
 		attacker_color, attacker["name"], target_color, target["name"],
 		dmg, total, dc, adv_tag, crit_tag
 	])
-	await _play_attack_feedback(attacker, target, true, dmg)
+	await _play_attack_feedback(attacker, target, true, dmg, is_crit)
 	return await _apply_damage(target, dmg, false)
 
 
@@ -544,8 +529,13 @@ func _build_units() -> void:
 		g["defense_class"] = 10 + dex_mod + int(g.get("armor", 0))
 		g["hp_current"] = g["hp_max"]
 		g["sprite_col"] = i % (SPRITE_COLS * SPRITE_ROWS)
+		g["visual_archetype"] = _DEFAULT_SKILL_BY_INDEX[i] if i < _DEFAULT_SKILL_BY_INDEX.size() else "brutal_charge"
+		g["visual_root"] = null
 		g["rect_node"] = null
+		g["sprite_node"] = null
 		g["ring_node"] = null
+		g["shadow_node"] = null
+		g["status_node"] = null
 		g["hp_bar_node"] = null
 		g["hp_row_node"] = null
 		g["hp_name_node"] = null
@@ -553,6 +543,8 @@ func _build_units() -> void:
 		if skill_key == "" and i < _DEFAULT_SKILL_BY_INDEX.size():
 			skill_key = _DEFAULT_SKILL_BY_INDEX[i]
 		g["skill"] = skill_key
+		if skill_key != "":
+			g["visual_archetype"] = skill_key
 		if skill_key != "" and SkillData.SKILLS.has(skill_key):
 			var sk: Dictionary = SkillData.SKILLS[skill_key]
 			if int(sk.get("attack_range", 1)) > 1:
@@ -585,8 +577,13 @@ func _build_units() -> void:
 			"hp_current": 0,
 			"defense_class": 0,
 			"sprite_col": i % (SPRITE_COLS * SPRITE_ROWS),
+			"visual_archetype": "enemy_bruiser",
+			"visual_root": null,
 			"rect_node": null,
+			"sprite_node": null,
 			"ring_node": null,
+			"shadow_node": null,
+			"status_node": null,
 			"hp_bar_node": null,
 			"hp_row_node": null,
 			"hp_name_node": null,
@@ -700,6 +697,10 @@ func _get_reachable_tiles(unit: Dictionary) -> Array:
 
 
 func _set_unit_screen_position(unit: Dictionary) -> void:
+	var visual := unit.get("visual_root", null) as Control
+	if visual != null:
+		visual.position = _iso_to_screen(unit["grid_pos"])
+		return
 	if unit.get("rect_node", null) == null:
 		return
 	var rect := unit["rect_node"] as Control
@@ -708,6 +709,8 @@ func _set_unit_screen_position(unit: Dictionary) -> void:
 
 
 func _set_unit_ring_position(unit: Dictionary) -> void:
+	if unit.get("visual_root", null) != null:
+		return
 	if unit.get("ring_node", null) == null:
 		return
 	var ring := unit["ring_node"] as Control
@@ -767,7 +770,8 @@ func _update_pass_button_state() -> void:
 func _move_unit_to(unit: Dictionary, grid_pos: Vector2i, animate := true) -> void:
 	if unit.is_empty():
 		return
-	if unit.get("rect_node", null) == null:
+	var visual := unit.get("visual_root", null) as BattleUnitVisual
+	if visual == null and unit.get("rect_node", null) == null:
 		unit["grid_pos"] = grid_pos
 		return
 
@@ -777,7 +781,9 @@ func _move_unit_to(unit: Dictionary, grid_pos: Vector2i, animate := true) -> voi
 		_set_unit_screen_position(unit)
 		return
 
-	var rect := unit["rect_node"] as Control
+	var mover := unit["rect_node"] as Control
+	if visual != null:
+		mover = visual
 	var ring := unit.get("ring_node", null) as Control
 	if not animate:
 		unit["grid_pos"] = grid_pos
@@ -786,22 +792,28 @@ func _move_unit_to(unit: Dictionary, grid_pos: Vector2i, animate := true) -> voi
 
 	_set_animating(true)
 	for step: Vector2i in path:
+		var previous_pos: Vector2i = unit["grid_pos"]
 		unit["grid_pos"] = step
+		if visual != null:
+			visual.set_facing(step - previous_pos)
+			visual.play("walk")
 		var target_pos := _iso_to_screen(step)
 		var ring_pos := target_pos + Vector2((UNIT_SIZE.x - RING_SIZE.x) * 0.5, UNIT_SIZE.y - RING_SIZE.y * 0.72)
 		var tween := create_tween()
 		tween.set_parallel(true)
-		tween.tween_property(rect, "position", target_pos + Vector2(0, -4), MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		tween.tween_property(rect, "scale", Vector2(1.05, 0.96), MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		if ring:
+		tween.tween_property(mover, "position", target_pos + Vector2(0, -4), MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(mover, "scale", Vector2(1.05, 0.96), MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		if ring and visual == null:
 			tween.tween_property(ring, "position", ring_pos, MOVE_STEP_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		await tween.finished
 
 		tween = create_tween()
 		tween.set_parallel(true)
-		tween.tween_property(rect, "position", target_pos, MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-		tween.tween_property(rect, "scale", Vector2.ONE, MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tween.tween_property(mover, "position", target_pos, MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tween.tween_property(mover, "scale", Vector2.ONE, MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 		await tween.finished
+	if visual != null:
+		visual.play("idle")
 	_set_unit_screen_position(unit)
 	_set_animating(false)
 
@@ -822,34 +834,26 @@ func _make_unit_texture(sprite_index: int) -> AtlasTexture:
 
 func _place_units() -> void:
 	for unit: Dictionary in _units:
-		var ring := IsoRing.new()
-		ring.size = RING_SIZE
-		ring.custom_minimum_size = RING_SIZE
-		ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ring.z_index = 8
-		_arena.add_child(ring)
-		unit["ring_node"] = ring
+		var visual := BattleUnitVisualScene.new() as BattleUnitVisual
+		visual.setup(UNIT_SIZE, RING_SIZE)
+		visual.position = _iso_to_screen(unit["grid_pos"])
+		visual.z_index = 10
+		visual.mouse_default_cursor_shape = Control.CURSOR_ARROW
+		visual.gui_input.connect(_on_unit_gui_input.bind(unit))
+		visual.mouse_entered.connect(_on_unit_mouse_entered.bind(unit))
+		visual.mouse_exited.connect(_on_unit_mouse_exited.bind(unit))
 
-		var tex_rect := TextureRect.new()
-		tex_rect.custom_minimum_size = UNIT_SIZE
-		tex_rect.size = UNIT_SIZE
-		tex_rect.pivot_offset = UNIT_SIZE * 0.5
-		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		tex_rect.position = _iso_to_screen(unit["grid_pos"])
-		tex_rect.mouse_filter = Control.MOUSE_FILTER_STOP
-		tex_rect.z_index = 10
+		var fallback_texture: Texture2D = _make_unit_texture(unit["sprite_col"]) if _sprite_sheet else null
+		var archetype := String(unit.get("visual_archetype", "enemy_bruiser"))
+		visual.set_texture_source(_animated_sheets.get(archetype, null), fallback_texture)
+		_arena.add_child(visual)
 
-		if _sprite_sheet:
-			tex_rect.texture = _make_unit_texture(unit["sprite_col"])
-
-		tex_rect.mouse_default_cursor_shape = Control.CURSOR_ARROW
-		tex_rect.gui_input.connect(_on_unit_gui_input.bind(unit))
-		tex_rect.mouse_entered.connect(_on_unit_mouse_entered.bind(unit))
-		tex_rect.mouse_exited.connect(_on_unit_mouse_exited.bind(unit))
-		_arena.add_child(tex_rect)
-		unit["rect_node"] = tex_rect
-		_set_unit_ring_position(unit)
+		unit["visual_root"] = visual
+		unit["rect_node"] = visual.sprite_node
+		unit["sprite_node"] = visual.sprite_node
+		unit["ring_node"] = visual.ring_node
+		unit["shadow_node"] = visual.shadow_node
+		unit["status_node"] = visual.status_node
 
 
 func _show_move_tiles(unit: Dictionary) -> void:
@@ -858,7 +862,7 @@ func _show_move_tiles(unit: Dictionary) -> void:
 		return
 
 	for grid_pos: Vector2i in _get_reachable_tiles(unit):
-		var tile := _create_iso_tile_visual(grid_pos, COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48))
+		var tile := _create_iso_tile_visual(grid_pos, COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_MOVE)
 		tile.mouse_filter = Control.MOUSE_FILTER_STOP
 		tile.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		tile.z_index = 4
@@ -886,7 +890,7 @@ func _show_attack_range_tiles(unit: Dictionary) -> void:
 			continue
 		if _grid_distance(unit["grid_pos"], u["grid_pos"]) > atk_range:
 			continue
-		var tile := _create_iso_tile_visual(u["grid_pos"], Color(1.0, 0.133, 0.267, 0.16), Color(1.0, 0.133, 0.267, 0.42))
+		var tile := _create_iso_tile_visual(u["grid_pos"], Color(1.0, 0.133, 0.267, 0.16), Color(1.0, 0.133, 0.267, 0.42), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_ATTACK)
 		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		tile.z_index = 3
 		_arena.add_child(tile)
@@ -929,12 +933,12 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	accept_event()
 
 
-func _on_move_tile_mouse_entered(tile: IsoTile) -> void:
-	tile.setup(COLOR_MOVE_TILE_HOVER, Color(1.0, 1.0, 1.0, 0.7), 2.0)
+func _on_move_tile_mouse_entered(tile: BattleIsoTile) -> void:
+	tile.setup(COLOR_MOVE_TILE_HOVER, Color(1.0, 1.0, 1.0, 0.7), 2.0, BattleIsoTile.VARIANT_MOVE)
 
 
-func _on_move_tile_mouse_exited(tile: IsoTile) -> void:
-	tile.setup(COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48), 2.0)
+func _on_move_tile_mouse_exited(tile: BattleIsoTile) -> void:
+	tile.setup(COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48), 2.0, BattleIsoTile.VARIANT_MOVE)
 
 
 func _build_hp_bars() -> void:
@@ -1091,20 +1095,35 @@ func _start_turn() -> void:
 
 func _highlight_active(active_unit: Dictionary) -> void:
 	for unit: Dictionary in _units:
-		if unit["rect_node"] == null:
+		if unit.get("visual_root", null) == null and unit["rect_node"] == null:
 			continue
 		_update_unit_visual(unit, active_unit)
 	_update_hp_row_visuals(active_unit)
 
 
 func _update_unit_visual(unit: Dictionary, active_unit: Dictionary) -> void:
+	var visual := unit.get("visual_root", null) as BattleUnitVisual
+	if visual != null:
+		var hp_max := maxf(1.0, float(unit.get("hp_max", 1)))
+		visual.set_state({
+			"active": unit == active_unit,
+			"selected": unit == _selected_target and _is_valid_target(unit),
+			"hovered": unit == _hovered_target,
+			"targetable": _is_targetable(unit),
+			"sponsor_mark": unit.get("is_mark", false) and int(unit.get("hp_current", 0)) > 0,
+			"execution_mark": unit == _marked_unit and int(unit.get("hp_current", 0)) > 0,
+			"low_hp": float(unit.get("hp_current", 0)) / hp_max <= 0.35,
+			"team": unit.get("team", ""),
+		})
+		return
+
 	var tex_rect := unit["rect_node"] as TextureRect
 	if unit == _hovered_target and _is_targetable(unit):
 		tex_rect.modulate = Color(1.3, 1.3, 1.3, 1.0)
 	else:
 		tex_rect.modulate = Color(1, 1, 1, 1)
 
-	var ring := unit.get("ring_node", null) as IsoRing
+	var ring = unit.get("ring_node", null)
 	if ring == null:
 		return
 	if unit == _selected_target and _is_valid_target(unit):
@@ -1147,10 +1166,15 @@ func _is_valid_target(target) -> bool:
 
 func _update_targeting_enabled() -> void:
 	for unit: Dictionary in _units:
+		var targetable: bool = not _is_animating and _is_targetable(unit)
+		var visual := unit.get("visual_root", null) as Control
+		if visual != null:
+			visual.mouse_filter = Control.MOUSE_FILTER_STOP if targetable else Control.MOUSE_FILTER_IGNORE
+			visual.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if targetable else Control.CURSOR_ARROW
+			continue
 		if unit["rect_node"] == null:
 			continue
 		var rect := unit["rect_node"] as Control
-		var targetable: bool = not _is_animating and _is_targetable(unit)
 		rect.mouse_filter = Control.MOUSE_FILTER_STOP if targetable else Control.MOUSE_FILTER_IGNORE
 		rect.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if targetable else Control.CURSOR_ARROW
 
@@ -1659,6 +1683,8 @@ func _apply_damage(target: Dictionary, amount: int, show_hit_feedback := true) -
 	if target["hp_bar_node"] != null:
 		(target["hp_bar_node"] as ProgressBar).value = target["hp_current"]
 		_style_hp_row(target, target == _get_active_unit())
+	if not _initiative.is_empty() and _units.has(target):
+		_update_unit_visual(target, _get_active_unit())
 	if show_hit_feedback:
 		_set_animating(true)
 		locked_by_damage = true
@@ -1709,18 +1735,22 @@ func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
 
 
 func _flash_hit(unit: Dictionary) -> void:
+	var visual := unit.get("visual_root", null) as BattleUnitVisual
+	if visual != null:
+		visual.flash_hit()
 	if unit["rect_node"] == null:
 		return
 	var tex_rect := unit["rect_node"] as TextureRect
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(tex_rect, "modulate", Color(1.7, 0.85, 0.85, 1), 0.06)
-	tween.tween_property(tex_rect, "position", tex_rect.position + Vector2(4, 0), 0.04)
+	tween.tween_property(tex_rect, "position", tex_rect.position + Vector2(3, 0), 0.04)
 	await tween.finished
 	tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(tex_rect, "modulate", Color(1, 1, 1, 1), 0.10)
-	tween.tween_property(tex_rect, "position", _iso_to_screen(unit["grid_pos"]), 0.08)
+	if visual == null:
+		tween.tween_property(tex_rect, "position", _iso_to_screen(unit["grid_pos"]), 0.08)
 	await tween.finished
 
 
@@ -1728,13 +1758,13 @@ func _unit_float_position(unit: Dictionary) -> Vector2:
 	return _iso_to_screen(unit["grid_pos"]) + Vector2(UNIT_SIZE.x * 0.5, 4)
 
 
-func _show_floating_text(text: String, world_pos: Vector2, color: Color) -> void:
+func _show_floating_text(text: String, world_pos: Vector2, color: Color, crit := false) -> void:
 	var lbl := Label.new()
 	lbl.text = text
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.add_theme_color_override("font_color", color)
-	lbl.add_theme_font_size_override("font_size", UITheme.SIZE_LG)
-	lbl.size = Vector2(96, 28)
+	lbl.add_theme_font_size_override("font_size", UITheme.SIZE_XL if crit else UITheme.SIZE_LG)
+	lbl.size = Vector2(118 if crit else 96, 30)
 	lbl.position = world_pos - Vector2(lbl.size.x * 0.5, 0)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.z_index = 30
@@ -1747,47 +1777,81 @@ func _show_floating_text(text: String, world_pos: Vector2, color: Color) -> void
 	tween.finished.connect(lbl.queue_free)
 
 
-func _play_attack_feedback(attacker: Dictionary, target: Dictionary, hit: bool, damage: int) -> void:
-	if attacker.get("rect_node", null) == null or target.get("rect_node", null) == null:
+func _play_attack_feedback(attacker: Dictionary, target: Dictionary, hit: bool, damage: int, crit := false) -> void:
+	var attacker_visual := attacker.get("visual_root", null) as BattleUnitVisual
+	var target_visual := target.get("visual_root", null) as BattleUnitVisual
+	var attacker_node := attacker.get("rect_node", null) as Control
+	if attacker_visual != null:
+		attacker_node = attacker_visual
+	if attacker_node == null or target.get("rect_node", null) == null:
 		return
 
 	_set_animating(true)
-	var attacker_rect := attacker["rect_node"] as Control
-	var origin := attacker_rect.position
+	var origin := attacker_node.position
 	var target_pos := _iso_to_screen(target["grid_pos"])
 	var direction := (target_pos - origin).normalized()
 	var lunge := origin + direction * 14.0
+	if attacker_visual != null:
+		attacker_visual.set_facing(target["grid_pos"] - attacker["grid_pos"])
 
-	var tween := create_tween()
-	tween.tween_property(attacker_rect, "position", lunge, ATTACK_LUNGE_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_property(attacker_rect, "position", origin, ATTACK_LUNGE_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	await tween.finished
+	var is_ranged := int(attacker.get("attack_range", DEFAULT_ATTACK_RANGE)) > 1
+	if is_ranged:
+		if attacker_visual != null:
+			attacker_visual.play("ranged_attack", false)
+		BattleCombatEffectScene.play_ranged_streak(_arena, _unit_float_position(attacker), _unit_float_position(target))
+		await get_tree().create_timer(ATTACK_LUNGE_DURATION * 2.0).timeout
+	else:
+		if attacker_visual != null:
+			attacker_visual.play("melee_attack", false)
+		var tween := create_tween()
+		tween.tween_property(attacker_node, "position", lunge, ATTACK_LUNGE_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(attacker_node, "position", origin, ATTACK_LUNGE_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		await tween.finished
 
 	if hit:
+		if not is_ranged:
+			BattleCombatEffectScene.play_melee_hit(_arena, _unit_float_position(attacker), _unit_float_position(target), crit)
 		await _flash_hit(target)
-		_show_floating_text("-%d" % damage, _unit_float_position(target), Color(1.0, 0.667, 0.0, 1.0))
+		_show_floating_text("CRIT -%d" % damage if crit else "-%d" % damage, _unit_float_position(target), Color(1.0, 0.22, 0.08, 1.0) if crit else Color(1.0, 0.667, 0.0, 1.0), crit)
 	else:
 		_show_floating_text("MISS", _unit_float_position(target), Color(0.75, 0.75, 0.82, 1.0))
+	if attacker_visual != null:
+		attacker_visual.play("idle")
+	if target_visual != null and int(target.get("hp_current", 1)) > 0:
+		target_visual.play("idle")
 	_set_animating(false)
 
 
 func _play_down_feedback(unit: Dictionary) -> void:
-	if unit.get("rect_node", null) == null:
+	var visual := unit.get("visual_root", null) as BattleUnitVisual
+	if visual != null:
+		visual.play_down()
+	if visual == null and unit.get("rect_node", null) == null:
 		await get_tree().create_timer(0.2).timeout
 		return
 	var rect := unit["rect_node"] as Control
+	if visual != null:
+		rect = visual
 	var ring := unit.get("ring_node", null) as Control
 	var tween := create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(rect, "modulate:a", 0.0, 0.25)
 	tween.tween_property(rect, "scale", Vector2(0.82, 0.82), 0.25)
-	if ring:
+	if ring and visual == null:
 		tween.tween_property(ring, "modulate:a", 0.0, 0.25)
 	await tween.finished
 
 
 func _remove_dead(unit: Dictionary) -> void:
-	if unit["rect_node"] != null:
+	if unit.get("visual_root", null) != null:
+		(unit["visual_root"] as Control).queue_free()
+		unit["visual_root"] = null
+		unit["rect_node"] = null
+		unit["sprite_node"] = null
+		unit["ring_node"] = null
+		unit["shadow_node"] = null
+		unit["status_node"] = null
+	elif unit["rect_node"] != null:
 		(unit["rect_node"] as TextureRect).queue_free()
 		unit["rect_node"] = null
 	if unit.get("ring_node", null) != null:

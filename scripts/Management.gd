@@ -1,5 +1,7 @@
 extends Control
 
+const InjuryData = preload("res://scripts/InjuryData.gd")
+
 const NAMES := [
 	"GRAK", "VOSS", "ZARETH", "NAXIS", "KRUL", "THANE", "OREX", "VELD",
 	"CRUX", "MORD", "SLASH", "BONE", "WREX", "DRAK", "TYKE", "SORN",
