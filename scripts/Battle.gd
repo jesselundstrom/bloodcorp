@@ -1,5 +1,60 @@
 extends Control
 
+class IsoTile:
+	extends Control
+
+	var fill_color: Color = Color(0, 0, 0, 0)
+	var border_color: Color = Color(1, 1, 1, 0)
+	var border_width: float = 2.0
+
+	func setup(p_fill: Color, p_border: Color, p_border_width := 2.0) -> void:
+		fill_color = p_fill
+		border_color = p_border
+		border_width = p_border_width
+		queue_redraw()
+
+	func _draw() -> void:
+		var mid_x := size.x * 0.5
+		var mid_y := size.y * 0.5
+		var points := PackedVector2Array([
+			Vector2(mid_x, 0),
+			Vector2(size.x, mid_y),
+			Vector2(mid_x, size.y),
+			Vector2(0, mid_y),
+		])
+		draw_polygon(points, PackedColorArray([fill_color]))
+		if border_color.a > 0.0 and border_width > 0.0:
+			var outline := PackedVector2Array(points)
+			outline.append(points[0])
+			draw_polyline(outline, border_color, border_width, true)
+
+
+class IsoRing:
+	extends Control
+
+	var ring_color: Color = Color(0, 0, 0, 0)
+	var ring_width: float = 2.0
+
+	func setup(p_color: Color, p_width := 2.0) -> void:
+		ring_color = p_color
+		ring_width = p_width
+		queue_redraw()
+
+	func _draw() -> void:
+		if ring_color.a <= 0.0 or ring_width <= 0.0:
+			return
+		var mid_x := size.x * 0.5
+		var mid_y := size.y * 0.5
+		var points := PackedVector2Array([
+			Vector2(mid_x, 0),
+			Vector2(size.x, mid_y),
+			Vector2(mid_x, size.y),
+			Vector2(0, mid_y),
+			Vector2(mid_x, 0),
+		])
+		draw_polyline(points, ring_color, ring_width, true)
+
+
 const ENEMY_NAMES := [
 	"GRAK", "VOSS", "ZARETH", "NAXIS", "KRUL", "THANE", "OREX", "VELD",
 	"CRUX", "MORD", "SLASH", "BONE", "WREX", "DRAK", "TYKE", "SORN",
@@ -12,8 +67,11 @@ const GRID_COLS := 9
 const GRID_ROWS := 6
 const UNIT_SIZE := Vector2(56, 56)
 const MOVE_TILE_SIZE := Vector2(42, 28)
+const RING_SIZE := Vector2(52, 30)
 const DEFAULT_MOVE_RANGE := 3
 const DEFAULT_ATTACK_RANGE := 1
+const MOVE_STEP_DURATION := 0.12
+const ATTACK_LUNGE_DURATION := 0.08
 
 # Sprite sheet: 1536x1024, 3 columns x 2 rows of 512x512 frames
 const SPRITE_SHEET_PATH := "res://assets/sprites/gladiators.png"
@@ -32,9 +90,9 @@ const COLOR_ATTACK_DISABLED := Color(0.22, 0.22, 0.25, 1.0)
 const COLOR_MOVE_TILE := Color(0.0, 1.0, 0.8, 0.28)
 const COLOR_MOVE_TILE_HOVER := Color(0.0, 1.0, 0.8, 0.52)
 const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
-const COLOR_OBSTACLE := Color(0.12, 0.09, 0.07, 0.92)
-const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.85)
-const COLOR_HAZARD := Color(1.0, 0.133, 0.267, 0.32)
+const COLOR_OBSTACLE := Color(0.10, 0.08, 0.06, 0.68)
+const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.45)
+const COLOR_HAZARD := Color(1.0, 0.133, 0.267, 0.22)
 const COLOR_HAZARD_BORDER := Color(1.0, 0.667, 0.0, 0.9)
 const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
 const COLOR_MARK := Color(0.8, 0.0, 1.0, 1.0)
@@ -95,6 +153,7 @@ var _sponsor: Dictionary = {}
 var _marked_unit = null
 var _style_score: int = 0
 var _selected_layout: Dictionary = {}
+var _is_animating: bool = false
 
 @onready var _arena: Control = $Layout/MainRow/Arena
 @onready var _player_list: VBoxContainer = $Layout/MainRow/PlayerHPPanel/PlayerList
@@ -176,41 +235,19 @@ func _draw_obstacles() -> void:
 
 
 func _draw_terrain_tile(pos: Vector2i, fill_color: Color, border_color: Color) -> void:
-	var tile := ColorRect.new()
-	tile.color = fill_color
-	tile.size = MOVE_TILE_SIZE
+	var tile := _create_iso_tile_visual(pos, fill_color, border_color)
 	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tile.position = _iso_to_screen(pos) + (UNIT_SIZE - MOVE_TILE_SIZE) * 0.5
-
-	var border_top := ColorRect.new()
-	border_top.color = border_color
-	border_top.size = Vector2(MOVE_TILE_SIZE.x, 2)
-	border_top.position = Vector2.ZERO
-	border_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tile.add_child(border_top)
-
-	var border_bottom := ColorRect.new()
-	border_bottom.color = border_color
-	border_bottom.size = Vector2(MOVE_TILE_SIZE.x, 2)
-	border_bottom.position = Vector2(0, MOVE_TILE_SIZE.y - 2)
-	border_bottom.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tile.add_child(border_bottom)
-
-	var border_left := ColorRect.new()
-	border_left.color = border_color
-	border_left.size = Vector2(2, MOVE_TILE_SIZE.y)
-	border_left.position = Vector2.ZERO
-	border_left.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tile.add_child(border_left)
-
-	var border_right := ColorRect.new()
-	border_right.color = border_color
-	border_right.size = Vector2(2, MOVE_TILE_SIZE.y)
-	border_right.position = Vector2(MOVE_TILE_SIZE.x - 2, 0)
-	border_right.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	tile.add_child(border_right)
-
 	_arena.add_child(tile)
+
+
+func _create_iso_tile_visual(pos: Vector2i, fill_color: Color, border_color: Color, size := MOVE_TILE_SIZE) -> IsoTile:
+	var tile := IsoTile.new()
+	tile.size = size
+	tile.custom_minimum_size = size
+	tile.position = _iso_to_screen(pos) + (UNIT_SIZE - size) * 0.5
+	tile.z_index = 2
+	tile.setup(fill_color, border_color, 2.0)
+	return tile
 
 
 func _draw_arena_floor() -> void:
@@ -275,6 +312,15 @@ func _log(msg: String) -> void:
 
 
 func _apply_styles() -> void:
+	$Layout/TopBar/HBox.add_theme_constant_override("separation", 8)
+	$Layout/BottomBar/HBox.add_theme_constant_override("separation", 6)
+	_lbl_unit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_lbl_unit_info.clip_text = true
+	_lbl_unit_info.custom_minimum_size = Vector2(520, 52)
+	for btn: Button in [_btn_attack, _btn_bonus, _btn_charge, _btn_pass]:
+		btn.custom_minimum_size = Vector2(104, 56)
+	_btn_pass.tooltip_text = "End the active unit's turn."
+
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.05, 0.05, 0.09, 1.0)
 	panel_style.border_color = Color(1.0, 0.133, 0.267, 0.6)
@@ -306,7 +352,7 @@ func _apply_styles() -> void:
 	_lbl_turn.add_theme_font_size_override("font_size", UITheme.SIZE_XS)
 
 	$Layout/TopBar/HBox/LblObjective.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
-	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
+	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", UITheme.SIZE_XS)
 
 	_style_button(_btn_attack)
 	_style_button(_btn_bonus)
@@ -450,6 +496,7 @@ func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: S
 		_log("%s%s[/color] missed %s%s[/color]  [color=#888888](%d vs DC %d)[/color]%s" % [
 			attacker_color, attacker["name"], target_color, target["name"], total, dc, adv_tag
 		])
+		await _play_attack_feedback(attacker, target, false, 0)
 		return false
 
 	var is_crit := nat == 20
@@ -466,7 +513,8 @@ func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: S
 		attacker_color, attacker["name"], target_color, target["name"],
 		dmg, total, dc, adv_tag, crit_tag
 	])
-	return await _apply_damage(target, dmg)
+	await _play_attack_feedback(attacker, target, true, dmg)
+	return await _apply_damage(target, dmg, false)
 
 
 func _spawn_position(key: String, index: int, fallback: Vector2i) -> Vector2i:
@@ -497,8 +545,10 @@ func _build_units() -> void:
 		g["hp_current"] = g["hp_max"]
 		g["sprite_col"] = i % (SPRITE_COLS * SPRITE_ROWS)
 		g["rect_node"] = null
-		g["border_nodes"] = []
+		g["ring_node"] = null
 		g["hp_bar_node"] = null
+		g["hp_row_node"] = null
+		g["hp_name_node"] = null
 		var skill_key: String = String(g.get("skill", ""))
 		if skill_key == "" and i < _DEFAULT_SKILL_BY_INDEX.size():
 			skill_key = _DEFAULT_SKILL_BY_INDEX[i]
@@ -536,8 +586,10 @@ func _build_units() -> void:
 			"defense_class": 0,
 			"sprite_col": i % (SPRITE_COLS * SPRITE_ROWS),
 			"rect_node": null,
-			"border_nodes": [],
+			"ring_node": null,
 			"hp_bar_node": null,
+			"hp_row_node": null,
+			"hp_name_node": null,
 		}
 		var e_con_mod: int = _stat_mod(int(e["constitution"]))
 		var e_dex_mod: int = _stat_mod(int(e["dexterity"]))
@@ -652,11 +704,106 @@ func _set_unit_screen_position(unit: Dictionary) -> void:
 		return
 	var rect := unit["rect_node"] as Control
 	rect.position = _iso_to_screen(unit["grid_pos"])
+	_set_unit_ring_position(unit)
 
 
-func _move_unit_to(unit: Dictionary, grid_pos: Vector2i) -> void:
-	unit["grid_pos"] = grid_pos
+func _set_unit_ring_position(unit: Dictionary) -> void:
+	if unit.get("ring_node", null) == null:
+		return
+	var ring := unit["ring_node"] as Control
+	ring.position = _iso_to_screen(unit["grid_pos"]) + Vector2(
+		(UNIT_SIZE.x - RING_SIZE.x) * 0.5,
+		UNIT_SIZE.y - RING_SIZE.y * 0.72
+	)
+
+
+func _find_path(unit: Dictionary, destination: Vector2i) -> Array:
+	var origin: Vector2i = unit.get("grid_pos", Vector2i(-1, -1))
+	if origin == destination:
+		return []
+	if not _is_walkable(destination, unit):
+		return []
+
+	var frontier: Array = [origin]
+	var parents: Dictionary = {origin: Vector2i(-999, -999)}
+	var cursor := 0
+	while cursor < frontier.size():
+		var current: Vector2i = frontier[cursor]
+		cursor += 1
+		if current == destination:
+			break
+		for next: Vector2i in _grid_neighbors(current):
+			if parents.has(next) or not _is_walkable(next, unit):
+				continue
+			parents[next] = current
+			frontier.append(next)
+
+	if not parents.has(destination):
+		return []
+
+	var path: Array = []
+	var step := destination
+	while step != origin:
+		path.push_front(step)
+		step = parents[step]
+	return path
+
+
+func _set_animating(animating: bool) -> void:
+	_is_animating = animating
+	if animating:
+		_btn_attack.disabled = true
+		_btn_bonus.disabled = true
+		_btn_charge.disabled = true
+		_btn_pass.disabled = true
+	else:
+		_update_pass_button_state()
+
+
+func _update_pass_button_state() -> void:
+	_btn_pass.disabled = _is_animating or _battle_over or _initiative.is_empty() or not _is_player_turn()
+
+
+func _move_unit_to(unit: Dictionary, grid_pos: Vector2i, animate := true) -> void:
+	if unit.is_empty():
+		return
+	if unit.get("rect_node", null) == null:
+		unit["grid_pos"] = grid_pos
+		return
+
+	var path := _find_path(unit, grid_pos)
+	if path.is_empty():
+		unit["grid_pos"] = grid_pos
+		_set_unit_screen_position(unit)
+		return
+
+	var rect := unit["rect_node"] as Control
+	var ring := unit.get("ring_node", null) as Control
+	if not animate:
+		unit["grid_pos"] = grid_pos
+		_set_unit_screen_position(unit)
+		return
+
+	_set_animating(true)
+	for step: Vector2i in path:
+		unit["grid_pos"] = step
+		var target_pos := _iso_to_screen(step)
+		var ring_pos := target_pos + Vector2((UNIT_SIZE.x - RING_SIZE.x) * 0.5, UNIT_SIZE.y - RING_SIZE.y * 0.72)
+		var tween := create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(rect, "position", target_pos + Vector2(0, -4), MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(rect, "scale", Vector2(1.05, 0.96), MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		if ring:
+			tween.tween_property(ring, "position", ring_pos, MOVE_STEP_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+		await tween.finished
+
+		tween = create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(rect, "position", target_pos, MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		tween.tween_property(rect, "scale", Vector2.ONE, MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+		await tween.finished
 	_set_unit_screen_position(unit)
+	_set_animating(false)
 
 
 func _make_unit_texture(sprite_index: int) -> AtlasTexture:
@@ -675,13 +822,23 @@ func _make_unit_texture(sprite_index: int) -> AtlasTexture:
 
 func _place_units() -> void:
 	for unit: Dictionary in _units:
+		var ring := IsoRing.new()
+		ring.size = RING_SIZE
+		ring.custom_minimum_size = RING_SIZE
+		ring.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ring.z_index = 8
+		_arena.add_child(ring)
+		unit["ring_node"] = ring
+
 		var tex_rect := TextureRect.new()
 		tex_rect.custom_minimum_size = UNIT_SIZE
 		tex_rect.size = UNIT_SIZE
+		tex_rect.pivot_offset = UNIT_SIZE * 0.5
 		tex_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		tex_rect.position = _iso_to_screen(unit["grid_pos"])
 		tex_rect.mouse_filter = Control.MOUSE_FILTER_STOP
+		tex_rect.z_index = 10
 
 		if _sprite_sheet:
 			tex_rect.texture = _make_unit_texture(unit["sprite_col"])
@@ -692,21 +849,19 @@ func _place_units() -> void:
 		tex_rect.mouse_exited.connect(_on_unit_mouse_exited.bind(unit))
 		_arena.add_child(tex_rect)
 		unit["rect_node"] = tex_rect
-		unit["border_nodes"] = _create_unit_borders(tex_rect)
+		_set_unit_ring_position(unit)
 
 
 func _show_move_tiles(unit: Dictionary) -> void:
 	_clear_move_tiles()
-	if not _is_player_turn() or bool(unit.get("has_moved", false)):
+	if _is_animating or not _is_player_turn() or bool(unit.get("has_moved", false)):
 		return
 
 	for grid_pos: Vector2i in _get_reachable_tiles(unit):
-		var tile := ColorRect.new()
-		tile.color = COLOR_MOVE_TILE
-		tile.size = MOVE_TILE_SIZE
+		var tile := _create_iso_tile_visual(grid_pos, COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48))
 		tile.mouse_filter = Control.MOUSE_FILTER_STOP
 		tile.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-		tile.position = _iso_to_screen(grid_pos) + (UNIT_SIZE - MOVE_TILE_SIZE) * 0.5
+		tile.z_index = 4
 		tile.gui_input.connect(_on_move_tile_gui_input.bind(grid_pos))
 		tile.mouse_entered.connect(_on_move_tile_mouse_entered.bind(tile))
 		tile.mouse_exited.connect(_on_move_tile_mouse_exited.bind(tile))
@@ -715,7 +870,7 @@ func _show_move_tiles(unit: Dictionary) -> void:
 
 
 func _clear_move_tiles() -> void:
-	for tile: ColorRect in _move_tiles:
+	for tile: Control in _move_tiles:
 		if is_instance_valid(tile):
 			tile.queue_free()
 	_move_tiles.clear()
@@ -724,24 +879,22 @@ func _clear_move_tiles() -> void:
 func _show_attack_range_tiles(unit: Dictionary) -> void:
 	_clear_attack_range_tiles()
 	var atk_range: int = int(unit.get("attack_range", DEFAULT_ATTACK_RANGE))
-	if atk_range <= 1 or not _is_player_turn():
+	if _is_animating or atk_range <= 1 or not _is_player_turn():
 		return
 	for u: Dictionary in _units:
 		if u["team"] != "enemy" or int(u.get("hp_current", 0)) <= 0:
 			continue
 		if _grid_distance(unit["grid_pos"], u["grid_pos"]) > atk_range:
 			continue
-		var tile := ColorRect.new()
-		tile.color = Color(1.0, 0.133, 0.267, 0.18)
-		tile.size = MOVE_TILE_SIZE
+		var tile := _create_iso_tile_visual(u["grid_pos"], Color(1.0, 0.133, 0.267, 0.16), Color(1.0, 0.133, 0.267, 0.42))
 		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.position = _iso_to_screen(u["grid_pos"]) + (UNIT_SIZE - MOVE_TILE_SIZE) * 0.5
+		tile.z_index = 3
 		_arena.add_child(tile)
 		_attack_range_tiles.append(tile)
 
 
 func _clear_attack_range_tiles() -> void:
-	for tile: ColorRect in _attack_range_tiles:
+	for tile: Control in _attack_range_tiles:
 		if is_instance_valid(tile):
 			tile.queue_free()
 	_attack_range_tiles.clear()
@@ -754,18 +907,18 @@ func _is_reachable_tile(unit: Dictionary, grid_pos: Vector2i) -> bool:
 func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
 		return
-	if not _is_player_turn():
+	if _is_animating or not _is_player_turn():
 		return
 
 	var unit := _get_active_unit()
 	if unit.is_empty() or not _is_reachable_tile(unit, grid_pos):
 		return
 
-	_move_unit_to(unit, grid_pos)
 	unit["has_moved"] = true
 	_log("[color=#00ffcc]%s[/color] repositioned" % unit["name"])
 	_clear_move_tiles()
 	_clear_target_selection(false)
+	await _move_unit_to(unit, grid_pos)
 	_update_unit_info(unit)
 	_update_targeting_enabled()
 	_update_attack_button_state()
@@ -776,18 +929,23 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	accept_event()
 
 
-func _on_move_tile_mouse_entered(tile: ColorRect) -> void:
-	tile.color = COLOR_MOVE_TILE_HOVER
+func _on_move_tile_mouse_entered(tile: IsoTile) -> void:
+	tile.setup(COLOR_MOVE_TILE_HOVER, Color(1.0, 1.0, 1.0, 0.7), 2.0)
 
 
-func _on_move_tile_mouse_exited(tile: ColorRect) -> void:
-	tile.color = COLOR_MOVE_TILE
+func _on_move_tile_mouse_exited(tile: IsoTile) -> void:
+	tile.setup(COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48), 2.0)
 
 
 func _build_hp_bars() -> void:
 	for unit: Dictionary in _units:
+		var row := PanelContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.custom_minimum_size = Vector2(132, 36)
+
 		var container := VBoxContainer.new()
 		container.add_theme_constant_override("separation", 2)
+		row.add_child(container)
 
 		var name_lbl := Label.new()
 		name_lbl.text = unit["name"]
@@ -805,11 +963,49 @@ func _build_hp_bars() -> void:
 		container.add_child(bar)
 
 		unit["hp_bar_node"] = bar
+		unit["hp_row_node"] = row
+		unit["hp_name_node"] = name_lbl
+		_style_hp_row(unit, false)
 
 		if unit["team"] == "player":
-			_player_list.add_child(container)
+			_player_list.add_child(row)
 		else:
-			_enemy_list.add_child(container)
+			_enemy_list.add_child(row)
+
+
+func _style_hp_row(unit: Dictionary, active := false) -> void:
+	var row := unit.get("hp_row_node", null) as PanelContainer
+	var bar := unit.get("hp_bar_node", null) as ProgressBar
+	var name_lbl := unit.get("hp_name_node", null) as Label
+	if row == null or bar == null or name_lbl == null:
+		return
+
+	var team_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
+	var hp_pct := float(unit.get("hp_current", 0)) / maxf(1.0, float(unit.get("hp_max", 1)))
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.0, 0.0, 0.0, 0.22) if active else Color(0, 0, 0, 0)
+	panel_style.border_color = team_color if active else Color(0, 0, 0, 0)
+	panel_style.set_border_width_all(1 if active else 0)
+	row.add_theme_stylebox_override("panel", panel_style)
+
+	var fill := StyleBoxFlat.new()
+	if hp_pct <= 0.33:
+		fill.bg_color = COLOR_ENEMY
+	elif hp_pct <= 0.66:
+		fill.bg_color = Color(1.0, 0.667, 0.0, 1.0)
+	else:
+		fill.bg_color = team_color
+	bar.add_theme_stylebox_override("fill", fill)
+
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.18, 0.18, 0.22, 0.92)
+	bar.add_theme_stylebox_override("background", bg)
+	name_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 1) if active else team_color)
+
+
+func _update_hp_row_visuals(active_unit: Dictionary) -> void:
+	for unit: Dictionary in _units:
+		_style_hp_row(unit, unit == active_unit)
 
 
 func _update_objective_label() -> void:
@@ -853,11 +1049,14 @@ func _update_unit_info(unit: Dictionary) -> void:
 			"bonus":
 				var bonus_ready := bool(unit.get("has_bonus_action", true))
 				skill_part = "  SKILL[BONUS]: %s (%s)" % [display.to_upper(), "READY" if bonus_ready else "USED"]
-	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d  |  MOVE: %s  ACTION: %s  BONUS: %s%s" % [
+	var skill_line := skill_part.strip_edges()
+	if skill_line == "":
+		skill_line = "SKILL: NONE"
+	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d\nMOVE %s  |  ACTION %s  |  BONUS %s  |  %s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
 		unit["strength"], unit["speed"], unit["armor"],
-		move_state, action_state, bonus_state, skill_part
+		move_state, action_state, bonus_state, skill_line
 	]
 
 
@@ -876,7 +1075,7 @@ func _start_turn() -> void:
 	_highlight_active(unit)
 
 	var is_player_turn: bool = str(unit["team"]) == "player"
-	_btn_pass.disabled = not is_player_turn
+	_update_pass_button_state()
 	_update_targeting_enabled()
 	_update_attack_button_state()
 	_update_bonus_button_state()
@@ -887,7 +1086,7 @@ func _start_turn() -> void:
 
 	if not is_player_turn:
 		await get_tree().create_timer(0.6).timeout
-		_enemy_act(unit)
+		await _enemy_act(unit)
 
 
 func _highlight_active(active_unit: Dictionary) -> void:
@@ -895,43 +1094,7 @@ func _highlight_active(active_unit: Dictionary) -> void:
 		if unit["rect_node"] == null:
 			continue
 		_update_unit_visual(unit, active_unit)
-
-
-func _create_unit_borders(rect: Control) -> Array:
-	var borders: Array = []
-	for border_name in ["BorderTop", "BorderRight", "BorderBottom", "BorderLeft"]:
-		var border := ColorRect.new()
-		border.name = border_name
-		border.color = COLOR_TRANSPARENT
-		border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		rect.add_child(border)
-		borders.append(border)
-	return borders
-
-
-func _set_unit_border(unit: Dictionary, color: Color, width: int) -> void:
-	var borders: Array = unit.get("border_nodes", [])
-	if borders.size() != 4:
-		return
-
-	var rect := unit["rect_node"] as Control
-	var w := float(width)
-	var top := borders[0] as ColorRect
-	var right := borders[1] as ColorRect
-	var bottom := borders[2] as ColorRect
-	var left := borders[3] as ColorRect
-	for border: ColorRect in [top, right, bottom, left]:
-		border.color = color
-		border.visible = width > 0
-
-	top.position = Vector2.ZERO
-	top.size = Vector2(rect.size.x, w)
-	right.position = Vector2(rect.size.x - w, 0)
-	right.size = Vector2(w, rect.size.y)
-	bottom.position = Vector2(0, rect.size.y - w)
-	bottom.size = Vector2(rect.size.x, w)
-	left.position = Vector2.ZERO
-	left.size = Vector2(w, rect.size.y)
+	_update_hp_row_visuals(active_unit)
 
 
 func _update_unit_visual(unit: Dictionary, active_unit: Dictionary) -> void:
@@ -941,16 +1104,21 @@ func _update_unit_visual(unit: Dictionary, active_unit: Dictionary) -> void:
 	else:
 		tex_rect.modulate = Color(1, 1, 1, 1)
 
+	var ring := unit.get("ring_node", null) as IsoRing
+	if ring == null:
+		return
 	if unit == _selected_target and _is_valid_target(unit):
-		_set_unit_border(unit, COLOR_SELECTED_BORDER, 3)
+		ring.setup(COLOR_SELECTED_BORDER, 3.0)
 	elif unit == _hovered_target and _is_targetable(unit):
-		_set_unit_border(unit, COLOR_HOVER_BORDER, 2)
+		ring.setup(COLOR_HOVER_BORDER, 2.0)
 	elif unit == active_unit:
-		_set_unit_border(unit, COLOR_ACTIVE_BORDER, 2)
+		ring.setup(COLOR_ACTIVE_BORDER, 2.0)
 	elif unit.get("is_mark", false) and int(unit.get("hp_current", 0)) > 0:
-		_set_unit_border(unit, Color(1.0, 0.667, 0.0, 0.9), 2)
+		ring.setup(Color(1.0, 0.667, 0.0, 0.9), 2.0)
+	elif unit == _marked_unit and int(unit.get("hp_current", 0)) > 0:
+		ring.setup(COLOR_MARK, 2.0)
 	else:
-		_set_unit_border(unit, COLOR_TRANSPARENT, 0)
+		ring.setup(COLOR_TRANSPARENT, 0.0)
 
 
 func _is_player_turn() -> bool:
@@ -960,13 +1128,15 @@ func _is_player_turn() -> bool:
 
 
 func _is_targetable(unit: Dictionary) -> bool:
-	if not _is_player_turn() or str(unit["team"]) != "enemy" or int(unit["hp_current"]) <= 0:
+	if _is_animating or not _is_player_turn() or str(unit["team"]) != "enemy" or int(unit["hp_current"]) <= 0:
 		return false
 	var active := _get_active_unit()
 	return not active.is_empty() and bool(active.get("has_main_action", true)) and _is_in_attack_range(active, unit)
 
 
 func _is_valid_target(target) -> bool:
+	if _is_animating:
+		return false
 	if not (target is Dictionary):
 		return false
 	if not _units.has(target) or str(target.get("team", "")) != "enemy" or int(target.get("hp_current", 0)) <= 0:
@@ -980,15 +1150,22 @@ func _update_targeting_enabled() -> void:
 		if unit["rect_node"] == null:
 			continue
 		var rect := unit["rect_node"] as Control
-		var targetable: bool = _is_targetable(unit)
+		var targetable: bool = not _is_animating and _is_targetable(unit)
 		rect.mouse_filter = Control.MOUSE_FILTER_STOP if targetable else Control.MOUSE_FILTER_IGNORE
 		rect.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if targetable else Control.CURSOR_ARROW
 
 
 func _update_attack_button_state() -> void:
+	if _is_animating:
+		_btn_attack.disabled = true
+		_btn_attack.text = "WAIT"
+		_btn_attack.tooltip_text = "Animation in progress"
+		_style_attack_button(false)
+		return
 	if _battle_over or _initiative.is_empty():
 		_btn_attack.disabled = true
 		_btn_attack.text = "ATTACK"
+		_btn_attack.tooltip_text = ""
 		_style_attack_button(false)
 		return
 
@@ -999,12 +1176,15 @@ func _update_attack_button_state() -> void:
 		_btn_attack.disabled = not has_target
 		if not has_action:
 			_btn_attack.text = "ACTION USED"
+			_btn_attack.tooltip_text = "This unit has already used its main action."
 		else:
-			_btn_attack.text = "ATTACK" if has_target else "SELECT ADJACENT TARGET"
+			_btn_attack.text = "ATTACK" if has_target else "NO TARGET"
+			_btn_attack.tooltip_text = "" if has_target else "Select an enemy in attack range."
 		_style_attack_button(has_target)
 	else:
 		_btn_attack.disabled = true
 		_btn_attack.text = "ATTACK"
+		_btn_attack.tooltip_text = ""
 		_style_attack_button(false)
 
 
@@ -1026,15 +1206,22 @@ func _available_bonus_actions(unit: Dictionary) -> Array:
 
 
 func _update_bonus_button_state() -> void:
+	if _is_animating:
+		_btn_bonus.disabled = true
+		_btn_bonus.text = "WAIT"
+		_btn_bonus.tooltip_text = "Animation in progress"
+		return
 	if _battle_over or _initiative.is_empty() or not _is_player_turn():
 		_btn_bonus.disabled = true
 		_btn_bonus.text = "BONUS"
+		_btn_bonus.tooltip_text = ""
 		return
 
 	var active := _get_active_unit()
 	if active.is_empty() or not bool(active.get("has_bonus_action", true)):
 		_btn_bonus.disabled = true
 		_btn_bonus.text = "BONUS USED"
+		_btn_bonus.tooltip_text = "This unit has already used its bonus action."
 		return
 
 	var actions := _available_bonus_actions(active)
@@ -1056,11 +1243,12 @@ func _update_bonus_button_state() -> void:
 			any_usable = true
 			break
 	_btn_bonus.disabled = not any_usable
-	_btn_bonus.text = "BONUS" if any_usable else "BONUS (NO TARGET)"
+	_btn_bonus.text = "BONUS" if any_usable else "NO BONUS"
+	_btn_bonus.tooltip_text = "" if any_usable else "No bonus action has a valid adjacent target."
 
 
 func _on_bonus_pressed() -> void:
-	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+	if _is_animating or _battle_over or _initiative.is_empty() or not _is_player_turn():
 		return
 	var active := _get_active_unit()
 	if active.is_empty() or not bool(active.get("has_bonus_action", true)):
@@ -1094,6 +1282,8 @@ func _on_bonus_pressed() -> void:
 
 
 func _on_bonus_popup_id_pressed(id: int) -> void:
+	if _is_animating:
+		return
 	var active := _get_active_unit()
 	if active.is_empty():
 		return
@@ -1102,23 +1292,31 @@ func _on_bonus_popup_id_pressed(id: int) -> void:
 		return
 	match actions[id]:
 		"shove":
-			_on_shove()
+			await _on_shove()
 		"execution_mark":
 			_on_mark()
 		"shield_bash":
-			_on_shield_bash()
+			await _on_shield_bash()
 
 
 func _update_charge_button_state() -> void:
+	if _is_animating:
+		_btn_charge.disabled = true
+		_btn_charge.visible = true
+		_btn_charge.text = "WAIT"
+		_btn_charge.tooltip_text = "Animation in progress"
+		return
 	if _battle_over or _initiative.is_empty() or not _is_player_turn():
 		_btn_charge.disabled = true
 		_btn_charge.visible = false
+		_btn_charge.tooltip_text = ""
 		return
 
 	var active := _get_active_unit()
 	if active.is_empty() or active.get("skill", "") != "brutal_charge":
 		_btn_charge.disabled = true
 		_btn_charge.visible = false
+		_btn_charge.tooltip_text = ""
 		return
 
 	_btn_charge.visible = true
@@ -1126,13 +1324,17 @@ func _update_charge_button_state() -> void:
 	var has_target := not _get_charge_target(active).is_empty()
 	_btn_charge.disabled = not (can_charge and has_target)
 	if not bool(active.get("has_main_action", true)):
-		_btn_charge.text = "ACTION USED"
+		_btn_charge.text = "USED"
+		_btn_charge.tooltip_text = "This unit has already used its main action."
 	elif bool(active.get("has_moved", false)):
-		_btn_charge.text = "CHARGE (MOVED)"
+		_btn_charge.text = "MOVED"
+		_btn_charge.tooltip_text = "Brutal Charge requires movement to be unused."
 	elif not has_target:
-		_btn_charge.text = "CHARGE (NO PATH)"
+		_btn_charge.text = "NO PATH"
+		_btn_charge.tooltip_text = "No enemy is reachable in a straight charge lane."
 	else:
 		_btn_charge.text = "CHARGE"
+		_btn_charge.tooltip_text = "Move in a straight line and strike the first enemy reached."
 
 
 
@@ -1173,7 +1375,10 @@ func _on_mark() -> void:
 	_marked_unit = target
 	_log("[color=#cc44ff]%s[/color] MARKED [color=#ff2244]%s[/color] for execution!" % [unit["name"], target["name"]])
 	_update_unit_info(unit)
+	_update_targeting_enabled()
+	_update_attack_button_state()
 	_update_bonus_button_state()
+	_update_charge_button_state()
 
 
 func _get_charge_target(unit: Dictionary) -> Dictionary:
@@ -1207,7 +1412,7 @@ func _get_charge_target(unit: Dictionary) -> Dictionary:
 
 
 func _on_charge() -> void:
-	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+	if _is_animating or _battle_over or _initiative.is_empty() or not _is_player_turn():
 		return
 
 	var unit := _get_active_unit()
@@ -1234,8 +1439,8 @@ func _on_charge() -> void:
 
 	unit["has_moved"] = true
 	unit["has_main_action"] = false
-	_move_unit_to(unit, land)
 	_clear_move_tiles()
+	await _move_unit_to(unit, land)
 	_update_unit_info(unit)
 	_update_charge_button_state()
 	_update_attack_button_state()
@@ -1263,7 +1468,7 @@ func _shove_impact_name(dest: Vector2i, target: Dictionary) -> String:
 
 
 func _on_shove() -> void:
-	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+	if _is_animating or _battle_over or _initiative.is_empty() or not _is_player_turn():
 		return
 
 	var unit := _get_active_unit()
@@ -1280,7 +1485,7 @@ func _on_shove() -> void:
 	var dest: Vector2i = target["grid_pos"] + push_dir
 
 	if _is_walkable(dest, target):
-		_move_unit_to(target, dest)
+		await _move_unit_to(target, dest)
 		if _is_hazard(dest):
 			_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] into arena hazard - [color=#ffaa00]%d[/color] dmg!" % [
 				unit["name"], target["name"], SHOVE_IMPACT_DAMAGE
@@ -1304,11 +1509,14 @@ func _on_shove() -> void:
 			return
 
 	_update_unit_info(unit)
+	_update_targeting_enabled()
+	_update_attack_button_state()
 	_update_bonus_button_state()
+	_update_charge_button_state()
 
 
 func _on_shield_bash() -> void:
-	if _battle_over or _initiative.is_empty() or not _is_player_turn():
+	if _is_animating or _battle_over or _initiative.is_empty() or not _is_player_turn():
 		return
 
 	var unit := _get_active_unit()
@@ -1342,6 +1550,8 @@ func _clear_target_selection(update_button := true) -> void:
 
 
 func _on_unit_gui_input(event: InputEvent, unit: Dictionary) -> void:
+	if _is_animating:
+		return
 	if not _is_targetable(unit):
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
@@ -1352,6 +1562,8 @@ func _on_unit_gui_input(event: InputEvent, unit: Dictionary) -> void:
 
 
 func _on_unit_mouse_entered(unit: Dictionary) -> void:
+	if _is_animating:
+		return
 	if not _is_targetable(unit):
 		return
 	_hovered_target = unit
@@ -1359,6 +1571,8 @@ func _on_unit_mouse_entered(unit: Dictionary) -> void:
 
 
 func _on_unit_mouse_exited(unit: Dictionary) -> void:
+	if _is_animating:
+		return
 	if _hovered_target != unit:
 		return
 	_hovered_target = null
@@ -1378,19 +1592,19 @@ func _enemy_act(unit: Dictionary) -> void:
 	if not _is_in_attack_range(unit, target):
 		var destination := _get_enemy_move_destination(unit, target)
 		if destination != unit["grid_pos"]:
-			_move_unit_to(unit, destination)
 			unit["has_moved"] = true
 			_log("[color=#ff2244]%s[/color] advanced" % unit["name"])
+			await _move_unit_to(unit, destination)
 
 	if _is_in_attack_range(unit, target):
 		unit["has_main_action"] = false
-		_apply_attack(unit, target)
+		await _apply_attack(unit, target)
 	else:
 		_advance_turn()
 
 
 func _on_attack() -> void:
-	if _battle_over or _initiative.is_empty():
+	if _is_animating or _battle_over or _initiative.is_empty():
 		return
 	var unit: Dictionary = _initiative[_turn_index]
 	if not _is_player_turn():
@@ -1406,11 +1620,11 @@ func _on_attack() -> void:
 	_update_charge_button_state()
 	_clear_move_tiles()
 	_clear_target_selection()
-	_apply_attack(unit, target)
+	await _apply_attack(unit, target)
 
 
 func _on_pass() -> void:
-	if _battle_over:
+	if _is_animating or _battle_over:
 		return
 	_advance_turn()
 
@@ -1439,11 +1653,17 @@ func _get_enemy_move_destination(unit: Dictionary, target: Dictionary) -> Vector
 	return best_pos
 
 
-func _apply_damage(target: Dictionary, amount: int) -> bool:
+func _apply_damage(target: Dictionary, amount: int, show_hit_feedback := true) -> bool:
+	var locked_by_damage := false
 	target["hp_current"] = maxi(0, int(target["hp_current"]) - amount)
 	if target["hp_bar_node"] != null:
 		(target["hp_bar_node"] as ProgressBar).value = target["hp_current"]
-	_flash_hit(target)
+		_style_hp_row(target, target == _get_active_unit())
+	if show_hit_feedback:
+		_set_animating(true)
+		locked_by_damage = true
+		await _flash_hit(target)
+		_show_floating_text("-%d" % amount, _unit_float_position(target), Color(1.0, 0.667, 0.0, 1.0))
 	if int(target["hp_current"]) <= 0:
 		if str(target["team"]) == "enemy":
 			_log("[color=#ff2244]%s[/color] [color=#888888]was eliminated[/color]" % target["name"])
@@ -1460,9 +1680,13 @@ func _apply_damage(target: Dictionary, amount: int) -> bool:
 			var ridx: int = int(target.get("roster_index", -1))
 			if ridx >= 0 and not _downed_player_indices.has(ridx):
 				_downed_player_indices.append(ridx)
-		await get_tree().create_timer(0.25).timeout
+		await _play_down_feedback(target)
+		if locked_by_damage:
+			_set_animating(false)
 		_remove_dead(target)
 		return true
+	if locked_by_damage:
+		_set_animating(false)
 	return false
 
 
@@ -1489,18 +1713,94 @@ func _flash_hit(unit: Dictionary) -> void:
 		return
 	var tex_rect := unit["rect_node"] as TextureRect
 	var tween := create_tween()
-	tween.tween_property(tex_rect, "modulate", Color(1, 1, 1, 1), 0.08)
-	tween.tween_property(tex_rect, "modulate", Color(1, 1, 1, 1), 0.12)
+	tween.set_parallel(true)
+	tween.tween_property(tex_rect, "modulate", Color(1.7, 0.85, 0.85, 1), 0.06)
+	tween.tween_property(tex_rect, "position", tex_rect.position + Vector2(4, 0), 0.04)
+	await tween.finished
+	tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(tex_rect, "modulate", Color(1, 1, 1, 1), 0.10)
+	tween.tween_property(tex_rect, "position", _iso_to_screen(unit["grid_pos"]), 0.08)
+	await tween.finished
+
+
+func _unit_float_position(unit: Dictionary) -> Vector2:
+	return _iso_to_screen(unit["grid_pos"]) + Vector2(UNIT_SIZE.x * 0.5, 4)
+
+
+func _show_floating_text(text: String, world_pos: Vector2, color: Color) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.add_theme_color_override("font_color", color)
+	lbl.add_theme_font_size_override("font_size", UITheme.SIZE_LG)
+	lbl.size = Vector2(96, 28)
+	lbl.position = world_pos - Vector2(lbl.size.x * 0.5, 0)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.z_index = 30
+	_arena.add_child(lbl)
+
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(lbl, "position", lbl.position + Vector2(0, -28), 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(lbl, "modulate:a", 0.0, 0.55).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tween.finished.connect(lbl.queue_free)
+
+
+func _play_attack_feedback(attacker: Dictionary, target: Dictionary, hit: bool, damage: int) -> void:
+	if attacker.get("rect_node", null) == null or target.get("rect_node", null) == null:
+		return
+
+	_set_animating(true)
+	var attacker_rect := attacker["rect_node"] as Control
+	var origin := attacker_rect.position
+	var target_pos := _iso_to_screen(target["grid_pos"])
+	var direction := (target_pos - origin).normalized()
+	var lunge := origin + direction * 14.0
+
+	var tween := create_tween()
+	tween.tween_property(attacker_rect, "position", lunge, ATTACK_LUNGE_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(attacker_rect, "position", origin, ATTACK_LUNGE_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	await tween.finished
+
+	if hit:
+		await _flash_hit(target)
+		_show_floating_text("-%d" % damage, _unit_float_position(target), Color(1.0, 0.667, 0.0, 1.0))
+	else:
+		_show_floating_text("MISS", _unit_float_position(target), Color(0.75, 0.75, 0.82, 1.0))
+	_set_animating(false)
+
+
+func _play_down_feedback(unit: Dictionary) -> void:
+	if unit.get("rect_node", null) == null:
+		await get_tree().create_timer(0.2).timeout
+		return
+	var rect := unit["rect_node"] as Control
+	var ring := unit.get("ring_node", null) as Control
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(rect, "modulate:a", 0.0, 0.25)
+	tween.tween_property(rect, "scale", Vector2(0.82, 0.82), 0.25)
+	if ring:
+		tween.tween_property(ring, "modulate:a", 0.0, 0.25)
+	await tween.finished
 
 
 func _remove_dead(unit: Dictionary) -> void:
 	if unit["rect_node"] != null:
 		(unit["rect_node"] as TextureRect).queue_free()
 		unit["rect_node"] = null
-		unit["border_nodes"] = []
+	if unit.get("ring_node", null) != null:
+		(unit["ring_node"] as Control).queue_free()
+		unit["ring_node"] = null
 	if unit["hp_bar_node"] != null:
-		(unit["hp_bar_node"] as ProgressBar).get_parent().queue_free()
+		if unit.get("hp_row_node", null) != null:
+			(unit["hp_row_node"] as Control).queue_free()
+		else:
+			(unit["hp_bar_node"] as ProgressBar).get_parent().queue_free()
 		unit["hp_bar_node"] = null
+		unit["hp_row_node"] = null
+		unit["hp_name_node"] = null
 	if _selected_target == unit:
 		_selected_target = null
 	if _hovered_target == unit:

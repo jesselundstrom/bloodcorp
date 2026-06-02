@@ -28,6 +28,7 @@ The tactical combat foundation is live in `scripts/Battle.gd`:
 - Enemy AI advances toward the nearest living player using reachable movement tiles, then attacks if in range.
 - Sponsor objectives, kill tracking, target mark highlighting, style score, and result rewards/penalties are wired into battle flow.
 - Bonus actions use a single `BtnBonus` button and PopupMenu listing available actions.
+- Battle presentation uses contextual isometric diamond highlights instead of rectangular boxes, tweened path movement for player/enemy moves plus shoves/charges, foot-ring selection states, hit/miss/damage floaters, and downed/eliminated fade-outs. These are presentation hooks only; combat rules and save data are unchanged.
 - **Attack resolution:** `1d20 + attack_bonus vs target.defense_class`. Miss = no damage. Hit = `weapon_die + stat_mod` (min 1). Crit (nat 20) = double dice. Proficiency +2 for recruits. Melee: 1d6 + STR_mod. Ranged (Marksman): 1d8 + DEX_mod. Flanking or Execution Mark grants advantage.
 - **Current HP formula:** `max_hp = 8 + CON_mod`.
 
