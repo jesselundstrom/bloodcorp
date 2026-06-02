@@ -89,13 +89,16 @@ var _fallback_texture: Texture2D
 var _frame_size := Vector2i(128, 128)
 var _frame_columns := 6
 var _animated := false
+var _detected_frames := {}  # anim_name -> actual frame count detected from sheet
 var _current_anim := "idle"
 var _current_frame := 0
 var _anim_elapsed := 0.0
-var _frame_duration := 0.15
+var _frame_duration := 0.22
 var _loop_anim := true
 var _facing_left := false
 var _active_idle := false
+var _is_walking := false
+var _walk_phase := 0.0
 var _idle_time := 0.0
 var _unit_size := Vector2(56, 56)
 var _sprite_base_pos := Vector2.ZERO
@@ -123,10 +126,10 @@ func setup(unit_size: Vector2, ring_size: Vector2) -> void:
 	add_child(ring_node)
 
 	sprite_node = TextureRect.new()
-	sprite_node.size = Vector2(72, 72)
+	sprite_node.size = Vector2(96, 96)
 	sprite_node.custom_minimum_size = sprite_node.size
 	sprite_node.pivot_offset = sprite_node.size * 0.5
-	_sprite_base_pos = Vector2((unit_size.x - sprite_node.size.x) * 0.5, -18)
+	_sprite_base_pos = Vector2((unit_size.x - sprite_node.size.x) * 0.5, -28)
 	sprite_node.position = _sprite_base_pos
 	sprite_node.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	sprite_node.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -142,23 +145,28 @@ func setup(unit_size: Vector2, ring_size: Vector2) -> void:
 	add_child(status_node)
 
 
-func set_texture_source(sheet_texture: Texture2D, fallback_texture: Texture2D) -> void:
+func set_texture_source(sheet_texture: Texture2D, fallback_texture: Texture2D, frame_overrides: Dictionary = {}) -> void:
 	_sheet_texture = sheet_texture
 	_fallback_texture = fallback_texture
 	_animated = _sheet_texture != null and _sheet_texture.get_width() >= 6 and _sheet_texture.get_height() >= 6
 	if _animated:
 		_frame_size = Vector2i(maxi(1, floori(float(_sheet_texture.get_width()) / 6.0)), maxi(1, floori(float(_sheet_texture.get_height()) / 6.0)))
 		_frame_columns = 6
+		_detected_frames = frame_overrides.duplicate()
 		play("idle")
 	else:
 		sprite_node.texture = _fallback_texture
 
 
 func play(anim_name: String, loop := true) -> void:
-	if not _animated:
-		return
 	if not ANIM_ROWS.has(anim_name):
 		anim_name = "idle"
+	_is_walking = anim_name == "walk"
+	if _is_walking:
+		_walk_phase = 0.0
+		anim_name = "idle"  # play idle frames while moving; squash-and-stretch implies motion
+	if not _animated:
+		return
 	_current_anim = anim_name
 	_current_frame = 0
 	_anim_elapsed = 0.0
@@ -170,7 +178,6 @@ func set_facing(direction: Vector2i) -> void:
 	if direction == Vector2i.ZERO:
 		return
 	_facing_left = (direction.x - direction.y) < 0
-	sprite_node.scale.x = -1.0 if _facing_left else 1.0
 
 
 func set_state(state: Dictionary) -> void:
@@ -214,9 +221,15 @@ func play_down() -> void:
 
 func _process(delta: float) -> void:
 	_idle_time += delta
-	var bob_amp := 1.8 if _active_idle else 0.55
-	var bob := sin(_idle_time * (3.8 if _active_idle else 2.4)) * bob_amp
-	sprite_node.position = _sprite_base_pos + Vector2(0, bob)
+
+	var facing_sign := -1.0 if _facing_left else 1.0
+	sprite_node.scale = Vector2(facing_sign, 1.0)
+	if _is_walking:
+		sprite_node.position = _sprite_base_pos
+	else:
+		var bob_amp := 0.9 if _active_idle else 0.0
+		var bob := sin(_idle_time * 2.2) * bob_amp
+		sprite_node.position = _sprite_base_pos + Vector2(0, bob)
 
 	if not _animated:
 		return
@@ -224,7 +237,7 @@ func _process(delta: float) -> void:
 	if _anim_elapsed < _frame_duration:
 		return
 	_anim_elapsed = 0.0
-	var frame_count: int = int(ANIM_FRAMES.get(_current_anim, 1))
+	var frame_count: int = int(_detected_frames.get(_current_anim, ANIM_FRAMES.get(_current_anim, 1)))
 	_current_frame += 1
 	if _current_frame >= frame_count:
 		if _loop_anim:
@@ -239,6 +252,7 @@ func _apply_frame() -> void:
 		return
 	var atlas := AtlasTexture.new()
 	atlas.atlas = _sheet_texture
+	atlas.filter_clip = true
 	atlas.region = Rect2(
 		_current_frame * _frame_size.x,
 		int(ANIM_ROWS.get(_current_anim, 0)) * _frame_size.y,

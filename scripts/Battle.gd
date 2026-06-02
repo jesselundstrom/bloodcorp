@@ -37,6 +37,15 @@ const ANIMATED_SHEET_PATHS := {
 	"shield_bash": "res://assets/sprites/gladiators/shield_bash.png",
 	"enemy_bruiser": "res://assets/sprites/gladiators/enemy_bruiser.png",
 }
+# Exact frame counts verified by visual inspection of each sheet.
+# Sheets have artifact fragments in unused columns that fool heuristic detection.
+const SHEET_FRAME_COUNTS := {
+	"brutal_charge":  {"idle":6,"walk":4,"melee_attack":4,"ranged_attack":6,"hit":6,"downed":6},
+	"marksman":       {"idle":6,"walk":6,"melee_attack":6,"ranged_attack":4,"hit":6,"downed":6},
+	"execution_mark": {"idle":6,"walk":6,"melee_attack":6,"ranged_attack":6,"hit":6,"downed":6},
+	"shield_bash":    {"idle":6,"walk":6,"melee_attack":4,"ranged_attack":6,"hit":6,"downed":6},
+	"enemy_bruiser":  {"idle":6,"walk":4,"melee_attack":4,"ranged_attack":4,"hit":5,"downed":6},
+}
 
 const COLOR_PLAYER := Color(0.0, 1.0, 0.8, 1.0)
 const COLOR_ENEMY := Color(1.0, 0.133, 0.267, 1.0)
@@ -800,17 +809,9 @@ func _move_unit_to(unit: Dictionary, grid_pos: Vector2i, animate := true) -> voi
 		var target_pos := _iso_to_screen(step)
 		var ring_pos := target_pos + Vector2((UNIT_SIZE.x - RING_SIZE.x) * 0.5, UNIT_SIZE.y - RING_SIZE.y * 0.72)
 		var tween := create_tween()
-		tween.set_parallel(true)
-		tween.tween_property(mover, "position", target_pos + Vector2(0, -4), MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-		tween.tween_property(mover, "scale", Vector2(1.05, 0.96), MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+		tween.tween_property(mover, "position", target_pos, MOVE_STEP_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		if ring and visual == null:
 			tween.tween_property(ring, "position", ring_pos, MOVE_STEP_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		await tween.finished
-
-		tween = create_tween()
-		tween.set_parallel(true)
-		tween.tween_property(mover, "position", target_pos, MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-		tween.tween_property(mover, "scale", Vector2.ONE, MOVE_STEP_DURATION * 0.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
 		await tween.finished
 	if visual != null:
 		visual.play("idle")
@@ -845,7 +846,8 @@ func _place_units() -> void:
 
 		var fallback_texture: Texture2D = _make_unit_texture(unit["sprite_col"]) if _sprite_sheet else null
 		var archetype := String(unit.get("visual_archetype", "enemy_bruiser"))
-		visual.set_texture_source(_animated_sheets.get(archetype, null), fallback_texture)
+		var frame_overrides: Dictionary = SHEET_FRAME_COUNTS.get(archetype, {})
+		visual.set_texture_source(_animated_sheets.get(archetype, null), fallback_texture, frame_overrides)
 		_arena.add_child(visual)
 
 		unit["visual_root"] = visual
