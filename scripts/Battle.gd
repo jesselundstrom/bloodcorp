@@ -1589,9 +1589,26 @@ func _show_result(won: bool) -> void:
 		_lbl_contract.text = "%s CONTRACT FAILED  %s" % [sponsor_name, contract_detail]
 		GameState.credits -= penalty
 		_lbl_reward.text = "-%d CREDITS" % penalty
+	_resolve_development()
 	_resolve_casualties()
 	GameState.tick_injuries()
 	GameState.save_game()
+
+
+func _resolve_development() -> void:
+	var dev_lines: Array = []
+	for unit in _units:
+		if unit.get("team", "") != "player":
+			continue
+		var ridx: int = int(unit.get("roster_index", -1))
+		if ridx < 0 or ridx >= GameState.roster.size():
+			continue
+		var changes: Array = GameState.develop_gladiator(ridx)
+		dev_lines.append_array(changes)
+	if dev_lines.size() > 0 and _combat_log != null:
+		_log("[color=#888888]— DEVELOPMENT —[/color]")
+		for line in dev_lines:
+			_log(line)
 
 
 func _resolve_casualties() -> void:

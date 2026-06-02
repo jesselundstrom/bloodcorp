@@ -65,6 +65,79 @@ func heal_injury_immediate(roster_index: int, injury_index: int) -> void:
 	g["injuries"].remove_at(injury_index)
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Development arc
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Stamps arc fields onto a gladiator dict if they are missing (safe to call on
+# already-initialised dicts — old saves get back-filled on load).
+func init_development(g: Dictionary) -> void:
+	if g.has("service"):
+		# Back-fill projection_grade for saves created before this field existed.
+		if not g.has("projection_grade"):
+			g["projection_grade"] = DevelopmentData.compute_projection_grade(g.get("ceiling", {}))
+		return
+	g["service"] = 0
+	g["arc_peak_match"] = DevelopmentData.roll_arc_peak()
+	g["career_stage"] = "Prospect"
+	var ceiling := {}
+	for stat in DevelopmentData.STAT_KEYS:
+		ceiling[stat] = DevelopmentData.roll_ceiling(int(g.get(stat, 10)))
+	g["ceiling"] = ceiling
+	g["projection_grade"] = DevelopmentData.compute_projection_grade(ceiling)
+
+
+# Runs one post-battle development tick for roster[index].
+# Increments service, updates career stage, rolls stat changes.
+# Returns a list of human-readable change strings (empty when no stat changed).
+func develop_gladiator(index: int) -> Array:
+	if index < 0 or index >= roster.size():
+		return []
+	var g: Dictionary = roster[index]
+	if not g.has("service"):
+		init_development(g)
+
+	g["service"] = int(g.get("service", 0)) + 1
+
+	var peak: int = int(g.get("arc_peak_match", 14))
+	var stage: String = DevelopmentData.stage_for(g["service"], peak)
+	g["career_stage"] = stage
+
+	var gname: String = str(g.get("name", "???"))
+	var changes: Array = []
+	var ceiling: Dictionary = g.get("ceiling", {})
+
+	var grow_chance: float = DevelopmentData.growth_chance_for_stage(stage)
+	if grow_chance > 0.0:
+		for stat in DevelopmentData.STAT_KEYS:
+			var cap: int = int(ceiling.get(stat, 20))
+			var cur: int = int(g.get(stat, 10))
+			if cur < cap and randf() < grow_chance:
+				g[stat] = cur + 1
+				var short := _stat_abbrev(stat)
+				changes.append("[color=#00ffcc]%s: %s +1[/color]" % [gname, short])
+	elif stage == "Decline":
+		if randf() < DevelopmentData.DECLINE_EROSION_CHANCE:
+			var stat: String = DevelopmentData.STAT_KEYS[randi() % DevelopmentData.STAT_KEYS.size()]
+			var cur: int = int(g.get(stat, 10))
+			if cur > DevelopmentData.STAT_FLOOR:
+				g[stat] = cur - 1
+				var short := _stat_abbrev(stat)
+				changes.append("[color=#ffaa00]%s: %s -1[/color]" % [gname, short])
+
+	return changes
+
+
+func _stat_abbrev(stat: String) -> String:
+	match stat:
+		"strength_score": return "STR"
+		"dexterity":      return "DEX"
+		"constitution":   return "CON"
+		"intelligence":   return "INT"
+		"charisma":       return "CHA"
+		_:                return stat.substr(0, 3).to_upper()
+
+
 func set_sponsor(sponsor: Dictionary) -> void:
 	active_sponsor = sponsor
 
@@ -120,6 +193,7 @@ func load_game() -> bool:
 						entry[stat] = 10
 				if not entry.has("injuries"):
 					entry["injuries"] = []
+				init_development(entry)
 				roster.append(entry)
 	var saved_sponsor = parsed.get("active_sponsor", {})
 	active_sponsor = saved_sponsor if saved_sponsor is Dictionary else {}
