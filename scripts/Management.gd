@@ -33,6 +33,7 @@ func _generate_recruits(count: int) -> Array:
 			"intelligence": randi_range(8, 18),
 			"charisma": randi_range(8, 18),
 		})
+		GameState.init_development(result.back())
 	return result
 
 func _refresh_credits() -> void:
@@ -84,6 +85,17 @@ func _make_card(data: Dictionary, is_roster: bool) -> PanelContainer:
 	cost_lbl.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
 	cost_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_BASE)
 	vbox.add_child(cost_lbl)
+
+	# Projection grade + career stage
+	var proj_lbl := Label.new()
+	var grade: String = str(data.get("projection_grade", "?"))
+	if is_roster:
+		proj_lbl.text = "PROJ %s  ·  %s" % [grade, str(data.get("career_stage", "?"))]
+	else:
+		proj_lbl.text = "PROJ %s" % grade
+	proj_lbl.add_theme_color_override("font_color", Color(0.0, 1.0, 0.8, 1.0))
+	proj_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_MD)
+	vbox.add_child(proj_lbl)
 
 	# Stats
 	for stat in ["strength", "speed", "armor"]:

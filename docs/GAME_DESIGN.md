@@ -184,6 +184,7 @@ Use this section for major decisions that future agents should not accidentally 
 - **2026-06-02:** Career clock is **Service** (matches fought), grouped into **Seasons** — not literal age. Career stages: Prospect → Rising → Prime → Decline → Spent. First-pass career length ~15–30 matches.
 - **2026-06-02:** Decline must carry a **player decision** (retire for salvage / last contract / trainer role), never a passive downward slope.
 - **2026-06-02:** **Variance Principle** adopted: every RNG layer must be paired with a player decision.
+- **2026-06-02:** Development arc first-pass constants (peak range 10–18, growth chances 0.50/0.70 by stage, decline erosion 0.35, ceiling bias `stat + randi_range(-2,6)`) live in `scripts/DevelopmentData.gd`. All numbers are explicitly provisional and isolated for playtest tuning without touching logic.
 
 ## Agent Maintenance Rules
 

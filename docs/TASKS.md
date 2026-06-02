@@ -10,12 +10,10 @@
 
 ## Now
 
-- **Service clock + development ticks** - Per-gladiator Service counter (matches fought), grouped into Seasons. Post-battle development tick that rolls stat increases toward a hidden `ceiling` per current stage. Player sees stats rise; ceiling stays hidden. GameState's existing day/round counter can seed the Service clock.
-- **Development arc data model** - Hidden `ceiling` + arc shape (when growth is fast, when peak hits, when decline starts) + career stage (Prospect/Rising/Prime/Decline/Spent). Stages drive growth, decline erosion, and casualty risk. Ceiling correlates *loosely* with starting stats.
+- **Scouting** - Credit-spend in Management to narrow the Projection band (requires Comms Suite facility). Deferred until Facility Upgrades exist.
 
 ## Later
 
-- **Fuzzy Projection + scouting** - Visible potential estimate shown as a band/grade (not exact). Scouting (credits / comms suite) narrows the band and may reveal a trait. This is the player's agency lever at the draft.
 - **Traits** - Data-driven traits that shape the arc and give scouting something to reveal (Prodigy, Late Bloomer, Workhorse, Journeyman, Glass, Burnout). Some visible at recruit, some scout-gated.
 - **Decline decisions** - Actions on a declining/Spent gladiator: retire for salvage payout, deploy on a high-risk "last contract", or assign to training room as a trainer.
 - **Rank / tier system** - Recruit/veteran/champion unlocks proficiency +3/+4 and stat progression; prerequisite for equipment.
@@ -45,3 +43,5 @@
 - **Arena planning feel** - grid expanded to 9x6; three arena layouts (blockers, hazards, spawns); path-aware BFS movement; hazard shoves deal 2 damage + STYLE +1
 - **Design docs** - `GAME_DESIGN.md` (broad), `COMBAT_DESIGN.md` (battle), `TASKS.md` (backlog); churn direction, injury-over-death, hidden development arc, Service/Season clock, and Variance Principle locked in the decision log *(2026-06-02)*
 - **Casualty Resolution + injuries** - 0 HP → downed (not dead) for player gladiators; enemies die as before. Post-battle d10 casualty roll: 1=death, 2-4=serious injury, 5-10=minor injury. `InjuryData.gd` defines three data-driven injuries (Broken Arm, Damaged Optic, Cracked Plating) with stat/HP penalties and 3-match recovery. Injuries show on roster cards in Management. *(2026-06-02)*
+- **Service clock + development arc** - Per-gladiator `service` counter, hidden `ceiling`/`arc_peak_match`, and career stages (Prospect→Rising→Prime→Decline→Spent). Post-battle development tick in `Battle._resolve_development()` rolls stat growth (+1) or erosion (−1). Changes logged in result screen. Constants isolated in `DevelopmentData.gd` for playtest tuning. *(2026-06-02)*
+- **Fuzzy Projection display** - `projection_grade` (D/C/B/A/S) computed once from hidden ceiling with ±1 fuzz, stored on gladiator dict, shown on all Management cards. Roster cards also show `career_stage`. Scouting (grade narrowing) deferred to Facility Upgrades. *(2026-06-02)*
