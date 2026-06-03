@@ -93,12 +93,12 @@ var _detected_frames := {}  # anim_name -> actual frame count detected from shee
 var _current_anim := "idle"
 var _current_frame := 0
 var _anim_elapsed := 0.0
-var _frame_duration := 0.22
+var _frame_duration := 0.26
 var _loop_anim := true
+var _advance_frames := true
 var _facing_left := false
 var _active_idle := false
 var _is_walking := false
-var _walk_phase := 0.0
 var _idle_time := 0.0
 var _unit_size := Vector2(56, 56)
 var _sprite_base_pos := Vector2.ZERO
@@ -162,15 +162,13 @@ func play(anim_name: String, loop := true) -> void:
 	if not ANIM_ROWS.has(anim_name):
 		anim_name = "idle"
 	_is_walking = anim_name == "walk"
-	if _is_walking:
-		_walk_phase = 0.0
-		anim_name = "idle"  # play idle frames while moving; squash-and-stretch implies motion
 	if not _animated:
 		return
 	_current_anim = anim_name
 	_current_frame = 0
 	_anim_elapsed = 0.0
 	_loop_anim = loop
+	_advance_frames = anim_name != "idle"
 	_apply_frame()
 
 
@@ -227,11 +225,11 @@ func _process(delta: float) -> void:
 	if _is_walking:
 		sprite_node.position = _sprite_base_pos
 	else:
-		var bob_amp := 0.9 if _active_idle else 0.0
-		var bob := sin(_idle_time * 2.2) * bob_amp
+		var bob_amp := 1.35 if _active_idle else 0.28
+		var bob := sin(_idle_time * 3.0) * bob_amp
 		sprite_node.position = _sprite_base_pos + Vector2(0, bob)
 
-	if not _animated:
+	if not _animated or not _advance_frames:
 		return
 	_anim_elapsed += delta
 	if _anim_elapsed < _frame_duration:

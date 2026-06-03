@@ -21,8 +21,8 @@ const MOVE_TILE_SIZE := Vector2(42, 28)
 const RING_SIZE := Vector2(52, 30)
 const DEFAULT_MOVE_RANGE := 3
 const DEFAULT_ATTACK_RANGE := 1
-const MOVE_STEP_DURATION := 0.12
-const ATTACK_LUNGE_DURATION := 0.08
+const MOVE_STEP_DURATION := 0.16
+const ATTACK_LUNGE_DURATION := 0.11
 
 # Sprite sheet: 1536x1024, 3 columns x 2 rows of 512x512 frames
 const SPRITE_SHEET_PATH := "res://assets/sprites/gladiators.png"
@@ -709,12 +709,14 @@ func _set_unit_screen_position(unit: Dictionary) -> void:
 	var visual := unit.get("visual_root", null) as Control
 	if visual != null:
 		visual.position = _iso_to_screen(unit["grid_pos"])
+		_update_unit_z_order(unit)
 		return
 	if unit.get("rect_node", null) == null:
 		return
 	var rect := unit["rect_node"] as Control
 	rect.position = _iso_to_screen(unit["grid_pos"])
 	_set_unit_ring_position(unit)
+	_update_unit_z_order(unit)
 
 
 func _set_unit_ring_position(unit: Dictionary) -> void:
@@ -727,6 +729,21 @@ func _set_unit_ring_position(unit: Dictionary) -> void:
 		(UNIT_SIZE.x - RING_SIZE.x) * 0.5,
 		UNIT_SIZE.y - RING_SIZE.y * 0.72
 	)
+
+
+func _update_unit_z_order(unit: Dictionary) -> void:
+	var pos: Vector2i = unit.get("grid_pos", Vector2i.ZERO)
+	var z := 10 + (pos.x + pos.y) * 10 + pos.x
+	var visual := unit.get("visual_root", null) as Control
+	if visual != null:
+		visual.z_index = z
+		return
+	var rect := unit.get("rect_node", null) as Control
+	if rect != null:
+		rect.z_index = z
+	var ring := unit.get("ring_node", null) as Control
+	if ring != null:
+		ring.z_index = max(0, z - 1)
 
 
 func _find_path(unit: Dictionary, destination: Vector2i) -> Array:
@@ -803,6 +820,7 @@ func _move_unit_to(unit: Dictionary, grid_pos: Vector2i, animate := true) -> voi
 	for step: Vector2i in path:
 		var previous_pos: Vector2i = unit["grid_pos"]
 		unit["grid_pos"] = step
+		_update_unit_z_order(unit)
 		if visual != null:
 			visual.set_facing(step - previous_pos)
 			visual.play("walk")
@@ -838,7 +856,6 @@ func _place_units() -> void:
 		var visual := BattleUnitVisualScene.new() as BattleUnitVisual
 		visual.setup(UNIT_SIZE, RING_SIZE)
 		visual.position = _iso_to_screen(unit["grid_pos"])
-		visual.z_index = 10
 		visual.mouse_default_cursor_shape = Control.CURSOR_ARROW
 		visual.gui_input.connect(_on_unit_gui_input.bind(unit))
 		visual.mouse_entered.connect(_on_unit_mouse_entered.bind(unit))
@@ -856,6 +873,7 @@ func _place_units() -> void:
 		unit["ring_node"] = visual.ring_node
 		unit["shadow_node"] = visual.shadow_node
 		unit["status_node"] = visual.status_node
+		_update_unit_z_order(unit)
 
 
 func _show_move_tiles(unit: Dictionary) -> void:
