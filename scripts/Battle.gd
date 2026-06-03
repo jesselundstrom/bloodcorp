@@ -48,7 +48,7 @@ const SHEET_FRAME_COUNTS := {
 	"marksman":       {"idle":6,"walk":6,"melee_attack":6,"ranged_attack":4,"hit":6,"downed":6},
 	"execution_mark": {"idle":6,"walk":6,"melee_attack":6,"ranged_attack":6,"hit":6,"downed":6},
 	"shield_bash":    {"idle":6,"walk":6,"melee_attack":4,"ranged_attack":6,"hit":6,"downed":6},
-	"enemy_bruiser":  {"idle":6,"walk":4,"melee_attack":4,"ranged_attack":4,"hit":5,"downed":6},
+	"enemy_bruiser":  {"idle":9,"walk":9,"melee_attack":9,"ranged_attack":9,"hit":9,"downed":9},
 }
 
 const COLOR_PLAYER := Color(0.0, 1.0, 0.8, 1.0)

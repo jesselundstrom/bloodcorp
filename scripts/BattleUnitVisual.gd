@@ -190,9 +190,12 @@ func set_texture_source(sheet_texture: Texture2D, fallback_texture: Texture2D, f
 	_fallback_texture = fallback_texture
 	_animated = _sheet_texture != null and _sheet_texture.get_width() >= 6 and _sheet_texture.get_height() >= 6
 	if _animated:
-		_frame_size = Vector2i(maxi(1, floori(float(_sheet_texture.get_width()) / 6.0)), maxi(1, floori(float(_sheet_texture.get_height()) / 6.0)))
-		_frame_columns = 6
 		_detected_frames = frame_overrides.duplicate()
+		var max_frames := 1
+		for v in _detected_frames.values():
+			max_frames = maxi(max_frames, int(v))
+		_frame_columns = max_frames if max_frames > 1 else 6
+		_frame_size = Vector2i(maxi(1, floori(float(_sheet_texture.get_width()) / float(_frame_columns))), maxi(1, floori(float(_sheet_texture.get_height()) / 6.0)))
 		play("idle")
 	else:
 		sprite_node.texture = _fallback_texture

@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cng8m75sohst4"]
+
+[ext_resource type="Script" uid="uid://e7m0i6s5v6pa" path="res://tools/RunSheetBuilder.gd" id="1_fvu7f"]
+
+[node name="SheetBuilder" type="Node" unique_id=1084348089]
+script = ExtResource("1_fvu7f")
