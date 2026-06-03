@@ -1,6 +1,6 @@
 extends Node
 
-const InjuryData = preload("res://scripts/InjuryData.gd")
+const InjuryDataScript = preload("res://scripts/InjuryData.gd")
 
 const MAX_ROSTER_SIZE := 9
 const MAX_INJURIES := 3
@@ -41,7 +41,7 @@ func apply_injury(index: int, injury_key: String, recovery_multiplier: int = 1) 
 	if g["injuries"].size() >= MAX_INJURIES:
 		# TODO: cap exceeded — spike death chance when career stage system exists
 		return
-	var recovery: int = InjuryData.INJURIES[injury_key]["recovery_matches"] * recovery_multiplier
+	var recovery: int = InjuryDataScript.INJURIES[injury_key]["recovery_matches"] * recovery_multiplier
 	g["injuries"].append({"key": injury_key, "remaining": recovery})
 
 
