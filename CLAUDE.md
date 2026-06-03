@@ -18,11 +18,27 @@ Open `project.godot` in the Godot 4.6 editor. Run the project with **F5** (run p
 
 ## AI Development Tooling
 
+Three MCP servers are available to AI agents working on this project:
+
+### godot-ai (Godot editor control)
 The `addons/godot_ai` plugin runs a local MCP server that lets AI assistants inspect and modify the live Godot editor via WebSocket. It is enabled in Project Settings and auto-starts when the editor opens.
 
 **Do not modify files under `addons/godot_ai/`** - this is a third-party plugin. Its source is at github.com/hi-godot/godot-ai.
 
 When connected via MCP, always use Godot MCP tools when applicable for Godot work: scene/node changes, script work that benefits from editor context, asset/resource inspection, and runtime verification. Direct file edits are acceptable for focused script/doc changes, but scene and node mutations should go through the editor when practical.
+
+### replicate (AI image generation)
+Replicate MCP is configured in `.claude/.mcp.json` (gitignored). Use it for concept art, background images, and reference generation via `flux-schnell` or other models. Good for fast iteration but not suited for precise pixel art game sprites.
+
+### pixellab (pixel art asset generation)
+PixelLab MCP is configured via `claude mcp add` (stored in `~/.claude.json`). Use it for all pixel art game assets:
+- `create_character` — gladiator/enemy sprites, 4 or 8 directional views, up to 128px
+- `animate_character` — walk, attack, death, idle animation frames
+- `create_isometric_tile` — arena floor and wall tiles
+- `create_topdown_tileset` / `create_sidescroller_tileset` — map tilesets
+- `create_character_state` — per-state sprite variants (e.g. downed, armored)
+
+Prefer PixelLab over Replicate for any sprite or tile work. Assets should be saved to `assets/sprites/`. Account is on a trial plan — check balance with `get_balance` before batch generation.
 
 ## Game: Bloodcorp
 
