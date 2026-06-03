@@ -23,7 +23,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 
 [node name="TopBar" type="PanelContainer" parent="Layout" unique_id=930933524]
-custom_minimum_size = Vector2(0, 50)
+custom_minimum_size = Vector2(0, 58)
 layout_mode = 2
 
 [node name="HBox" type="HBoxContainer" parent="Layout/TopBar" unique_id=75474149]
@@ -51,19 +51,6 @@ horizontal_alignment = 2
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="PlayerHPPanel" type="PanelContainer" parent="Layout/MainRow" unique_id=2092288994]
-custom_minimum_size = Vector2(160, 0)
-layout_mode = 2
-
-[node name="PlayerList" type="VBoxContainer" parent="Layout/MainRow/PlayerHPPanel" unique_id=734824651]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="LblPlayerTitle" type="Label" parent="Layout/MainRow/PlayerHPPanel/PlayerList" unique_id=1728883880]
-layout_mode = 2
-text = "-- PLAYER --"
-horizontal_alignment = 1
-
 [node name="Arena" type="Control" parent="Layout/MainRow" unique_id=1575108553]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -75,30 +62,24 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(0.05882353, 0.05882353, 0.101960786, 1)
 
-[node name="EnemyHPPanel" type="PanelContainer" parent="Layout/MainRow" unique_id=1783402427]
-custom_minimum_size = Vector2(160, 0)
+[node name="CombatLogBar" type="PanelContainer" parent="Layout"]
+custom_minimum_size = Vector2(0, 46)
 layout_mode = 2
-
-[node name="EnemyList" type="VBoxContainer" parent="Layout/MainRow/EnemyHPPanel" unique_id=205433608]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="LblEnemyTitle" type="Label" parent="Layout/MainRow/EnemyHPPanel/EnemyList" unique_id=581493498]
-layout_mode = 2
-text = "-- ENEMY --"
-horizontal_alignment = 1
 
 [node name="BottomBar" type="PanelContainer" parent="Layout" unique_id=1343473903]
-custom_minimum_size = Vector2(0, 70)
+custom_minimum_size = Vector2(0, 86)
 layout_mode = 2
 
 [node name="HBox" type="HBoxContainer" parent="Layout/BottomBar" unique_id=178159714]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="LblUnitInfo" type="Label" parent="Layout/BottomBar/HBox" unique_id=544408365]
+[node name="ActiveUnitCard" type="PanelContainer" parent="Layout/BottomBar/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
+
+[node name="LblUnitInfo" type="Label" parent="Layout/BottomBar/HBox/ActiveUnitCard" unique_id=544408365]
+layout_mode = 2
 text = "Select a unit"
 vertical_alignment = 1
 

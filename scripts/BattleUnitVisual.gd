@@ -62,6 +62,38 @@ class StatusNode:
 			draw_polygon(tri, PackedColorArray([Color(1.0, 0.18, 0.08, 0.95)]))
 
 
+class HpBarNode:
+	extends Control
+
+	var hp_current := 1
+	var hp_max := 1
+	var team_color := Color(0.0, 1.0, 0.8, 1.0)
+	var active := false
+
+	func setup(p_current: int, p_max: int, p_team_color: Color, p_active: bool) -> void:
+		hp_current = maxi(0, p_current)
+		hp_max = maxi(1, p_max)
+		team_color = p_team_color
+		active = p_active
+		visible = hp_current > 0
+		queue_redraw()
+
+	func _draw() -> void:
+		if hp_current <= 0:
+			return
+		var pct := clampf(float(hp_current) / float(hp_max), 0.0, 1.0)
+		var outline_color := Color(1, 1, 1, 0.75) if active else Color(0, 0, 0, 0.86)
+		var fill_color := team_color
+		if pct <= 0.33:
+			fill_color = Color(1.0, 0.18, 0.08, 1.0)
+		elif pct <= 0.66:
+			fill_color = Color(1.0, 0.667, 0.0, 1.0)
+
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.74))
+		draw_rect(Rect2(Vector2(1, 1), Vector2(maxf(1.0, (size.x - 2.0) * pct), size.y - 2.0)), fill_color)
+		draw_rect(Rect2(Vector2.ZERO, size), outline_color, false, 1.0)
+
+
 const ANIM_ROWS := {
 	"idle": 0,
 	"walk": 1,
@@ -83,6 +115,7 @@ var shadow_node: ShadowNode
 var ring_node: RingNode
 var sprite_node: TextureRect
 var status_node: StatusNode
+var hp_bar_node: HpBarNode
 
 var _sheet_texture: Texture2D
 var _fallback_texture: Texture2D
@@ -144,6 +177,13 @@ func setup(unit_size: Vector2, ring_size: Vector2) -> void:
 	status_node.z_index = 3
 	add_child(status_node)
 
+	hp_bar_node = HpBarNode.new()
+	hp_bar_node.size = Vector2(42, 5)
+	hp_bar_node.position = Vector2((unit_size.x - hp_bar_node.size.x) * 0.5, -27)
+	hp_bar_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hp_bar_node.z_index = 4
+	add_child(hp_bar_node)
+
 
 func set_texture_source(sheet_texture: Texture2D, fallback_texture: Texture2D, frame_overrides: Dictionary = {}) -> void:
 	_sheet_texture = sheet_texture
@@ -202,7 +242,15 @@ func set_state(state: Dictionary) -> void:
 	elif bool(state.get("sponsor_mark", false)):
 		mark_color = Color(1.0, 0.667, 0.0, 1.0)
 	status_node.setup(mark_color, bool(state.get("low_hp", false)))
+	hp_bar_node.active = bool(state.get("active", false))
+	hp_bar_node.queue_redraw()
 	set_active_idle(bool(state.get("active", false)))
+
+
+func set_hp(current: int, maximum: int, team_color: Color, active := false) -> void:
+	if hp_bar_node == null:
+		return
+	hp_bar_node.setup(current, maximum, team_color, active)
 
 
 func set_active_idle(enabled: bool) -> void:

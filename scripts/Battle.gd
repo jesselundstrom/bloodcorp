@@ -1,6 +1,7 @@
 extends Control
 
 const InjuryData = preload("res://scripts/InjuryData.gd")
+const BattleArenaFloorScene := preload("res://scripts/BattleArenaFloor.gd")
 const BattleIsoTileScene := preload("res://scripts/BattleIsoTile.gd")
 const BattleUnitVisualScene := preload("res://scripts/BattleUnitVisual.gd")
 const BattleCombatEffectScene := preload("res://scripts/BattleCombatEffect.gd")
@@ -23,6 +24,9 @@ const DEFAULT_MOVE_RANGE := 3
 const DEFAULT_ATTACK_RANGE := 1
 const MOVE_STEP_DURATION := 0.16
 const ATTACK_LUNGE_DURATION := 0.11
+const ARENA_BG_PATH := "res://assets/sprites/arena/broadcast_arena_bg.png"
+const BOARD_CENTER_RATIO := Vector2(0.50, 0.56)
+const BOARD_SIZE_RATIO := Vector2(0.52, 0.42)
 
 # Sprite sheet: 1536x1024, 3 columns x 2 rows of 512x512 frames
 const SPRITE_SHEET_PATH := "res://assets/sprites/gladiators.png"
@@ -75,30 +79,30 @@ const ARENA_LAYOUTS: Array = [
 		"blockers": [Vector2i(3, 1), Vector2i(5, 1), Vector2i(4, 4)],
 		"hazards": [Vector2i(4, 2), Vector2i(4, 3), Vector2i(2, 3), Vector2i(6, 2)],
 		"player_spawns": [
-			Vector2i(0, 2), Vector2i(0, 3), Vector2i(1, 1), Vector2i(1, 4), Vector2i(0, 1),
-			Vector2i(0, 4), Vector2i(1, 2), Vector2i(1, 3), Vector2i(0, 0)
+			Vector2i(1, 2), Vector2i(1, 3), Vector2i(2, 1), Vector2i(2, 4), Vector2i(1, 1),
+			Vector2i(1, 4), Vector2i(2, 2), Vector2i(2, 3), Vector2i(0, 2)
 		],
-		"enemy_spawns": [Vector2i(8, 2), Vector2i(8, 3), Vector2i(7, 1), Vector2i(7, 4), Vector2i(8, 1)],
+		"enemy_spawns": [Vector2i(7, 2), Vector2i(7, 3), Vector2i(6, 1), Vector2i(6, 4), Vector2i(7, 4)],
 	},
 	{
 		"name": "BROKEN PILLARS",
 		"blockers": [Vector2i(3, 1), Vector2i(5, 1), Vector2i(4, 3), Vector2i(2, 4), Vector2i(6, 4)],
 		"hazards": [Vector2i(4, 2), Vector2i(3, 3), Vector2i(5, 3)],
 		"player_spawns": [
-			Vector2i(0, 1), Vector2i(0, 4), Vector2i(1, 2), Vector2i(1, 3), Vector2i(0, 2),
-			Vector2i(0, 3), Vector2i(1, 0), Vector2i(1, 5), Vector2i(0, 0)
+			Vector2i(1, 1), Vector2i(1, 4), Vector2i(2, 2), Vector2i(2, 3), Vector2i(1, 2),
+			Vector2i(1, 3), Vector2i(2, 0), Vector2i(2, 5), Vector2i(0, 2)
 		],
-		"enemy_spawns": [Vector2i(8, 1), Vector2i(8, 4), Vector2i(7, 2), Vector2i(7, 3), Vector2i(8, 3)],
+		"enemy_spawns": [Vector2i(7, 1), Vector2i(7, 4), Vector2i(6, 2), Vector2i(6, 3), Vector2i(7, 3)],
 	},
 	{
 		"name": "BLOOD CHANNELS",
 		"blockers": [Vector2i(4, 0), Vector2i(4, 5), Vector2i(2, 2), Vector2i(6, 3)],
 		"hazards": [Vector2i(3, 2), Vector2i(4, 2), Vector2i(5, 2), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)],
 		"player_spawns": [
-			Vector2i(0, 2), Vector2i(0, 3), Vector2i(1, 1), Vector2i(1, 4), Vector2i(0, 1),
-			Vector2i(0, 4), Vector2i(1, 2), Vector2i(1, 3), Vector2i(0, 0)
+			Vector2i(1, 2), Vector2i(1, 3), Vector2i(2, 1), Vector2i(2, 4), Vector2i(1, 1),
+			Vector2i(1, 4), Vector2i(1, 0), Vector2i(1, 5), Vector2i(0, 2)
 		],
-		"enemy_spawns": [Vector2i(8, 2), Vector2i(8, 3), Vector2i(7, 1), Vector2i(7, 4), Vector2i(8, 4)],
+		"enemy_spawns": [Vector2i(7, 2), Vector2i(7, 3), Vector2i(6, 1), Vector2i(6, 4), Vector2i(7, 4)],
 	},
 ]
 
@@ -124,12 +128,12 @@ var _selected_layout: Dictionary = {}
 var _is_animating: bool = false
 
 @onready var _arena: Control = $Layout/MainRow/Arena
-@onready var _player_list: VBoxContainer = $Layout/MainRow/PlayerHPPanel/PlayerList
-@onready var _enemy_list: VBoxContainer = $Layout/MainRow/EnemyHPPanel/EnemyList
+@onready var _combat_log_bar: PanelContainer = $Layout/CombatLogBar
 @onready var _lbl_round: Label = $Layout/TopBar/HBox/LblRound
 @onready var _lbl_objective: Label = $Layout/TopBar/HBox/LblObjective
 @onready var _lbl_turn: Label = $Layout/TopBar/HBox/LblTurn
-@onready var _lbl_unit_info: Label = $Layout/BottomBar/HBox/LblUnitInfo
+@onready var _active_unit_card: PanelContainer = $Layout/BottomBar/HBox/ActiveUnitCard
+@onready var _lbl_unit_info: Label = $Layout/BottomBar/HBox/ActiveUnitCard/LblUnitInfo
 @onready var _btn_attack: Button = $Layout/BottomBar/HBox/BtnAttack
 @onready var _btn_bonus: Button = $Layout/BottomBar/HBox/BtnBonus
 @onready var _bonus_popup: PopupMenu = $Layout/BottomBar/HBox/BtnBonus/BonusPopup
@@ -163,7 +167,6 @@ func _ready() -> void:
 	_place_units()
 	_build_combat_log()
 	_log("[color=#ffaa00]ARENA: %s[/color]" % _selected_layout.get("name", "UNKNOWN"))
-	_build_hp_bars()
 	_btn_attack.pressed.connect(_on_attack)
 	_btn_bonus.pressed.connect(_on_bonus_pressed)
 	_bonus_popup.id_pressed.connect(_on_bonus_popup_id_pressed)
@@ -231,36 +234,34 @@ func _create_iso_tile_visual(pos: Vector2i, fill_color: Color, border_color: Col
 
 
 func _draw_arena_floor() -> void:
-	# Use an ArenaFloor Control subclass drawn via shader on ArenaBg
 	var bg := $Layout/MainRow/Arena/ArenaBg as ColorRect
-
-	# Load or create the ellipse shader
-	var shader_code := """
-shader_type canvas_item;
-uniform vec4 color_outer : source_color = vec4(0.10, 0.07, 0.06, 1.0);
-uniform vec4 color_inner : source_color = vec4(0.15, 0.10, 0.08, 1.0);
-uniform float inner_radius : hint_range(0.0, 1.0) = 0.62;
-void fragment() {
-	vec2 uv = UV - vec2(0.5);
-	float aspect = 1.0 / (SCREEN_PIXEL_SIZE.y / SCREEN_PIXEL_SIZE.x);
-	uv.x *= aspect;
-	float d = length(uv) * 2.0;
-	if (d > 1.0) {
-		COLOR = vec4(0.039, 0.039, 0.059, 1.0);
-	} else if (d > inner_radius) {
-		COLOR = color_outer;
-	} else {
-		COLOR = color_inner;
-	}
-}
-"""
-	var shader := Shader.new()
-	shader.code = shader_code
-	var mat := ShaderMaterial.new()
-	mat.shader = shader
-	bg.material = mat
-	bg.color = Color(1, 1, 1, 1)  # white so shader drives color
+	bg.material = null
+	bg.color = Color(0.004, 0.005, 0.010, 1.0)
+	bg.z_index = 0
 	bg.visible = true
+
+	var arena_art := _arena.get_node_or_null("ArenaArt") as TextureRect
+	if arena_art == null:
+		arena_art = TextureRect.new()
+		arena_art.name = "ArenaArt"
+		arena_art.set_anchors_preset(Control.PRESET_FULL_RECT)
+		arena_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		arena_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		arena_art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		arena_art.z_index = 0
+		_arena.add_child(arena_art)
+		_arena.move_child(arena_art, 1)
+	arena_art.texture = load(ARENA_BG_PATH) as Texture2D
+
+	var floor = _arena.get_node_or_null("ArenaFloor")
+	if floor == null:
+		floor = BattleArenaFloorScene.new()
+		floor.name = "ArenaFloor"
+		floor.set_anchors_preset(Control.PRESET_FULL_RECT)
+		floor.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		floor.z_index = 1
+		_arena.add_child(floor)
+	floor.call("setup", GRID_COLS, GRID_ROWS, MOVE_TILE_SIZE, UNIT_SIZE, BOARD_CENTER_RATIO, BOARD_SIZE_RATIO)
 
 	if not _arena.has_node("ArenaScanlines"):
 		var scanlines := ColorRect.new()
@@ -283,21 +284,16 @@ func _build_combat_log() -> void:
 	_combat_log.scroll_following = true
 	_combat_log.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_combat_log.focus_mode = Control.FOCUS_NONE
-
-	_combat_log.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_combat_log.offset_left = 8.0
-	_combat_log.offset_bottom = -8.0
-	_combat_log.offset_right = 8.0 + 280.0
-	_combat_log.offset_top = -160.0
+	_combat_log.fit_content = false
+	_combat_log.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_combat_log.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	var log_style := StyleBoxFlat.new()
-	log_style.bg_color = Color(0.0, 0.0, 0.0, 0.62)
-	log_style.set_border_width_all(1)
-	log_style.border_color = Color(1.0, 0.133, 0.267, 0.35)
+	log_style.bg_color = Color(0.0, 0.0, 0.0, 0.18)
 	_combat_log.add_theme_stylebox_override("normal", log_style)
 	_combat_log.add_theme_font_size_override("normal_font_size", UITheme.SIZE_XXS)
 
-	_arena.add_child(_combat_log)
+	_combat_log_bar.add_child(_combat_log)
 
 
 func _log(msg: String) -> void:
@@ -307,22 +303,31 @@ func _log(msg: String) -> void:
 
 func _apply_styles() -> void:
 	$Layout/TopBar/HBox.add_theme_constant_override("separation", 8)
-	$Layout/BottomBar/HBox.add_theme_constant_override("separation", 6)
+	$Layout/BottomBar/HBox.add_theme_constant_override("separation", 8)
 	_lbl_unit_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_lbl_unit_info.clip_text = true
-	_lbl_unit_info.custom_minimum_size = Vector2(520, 52)
+	_lbl_unit_info.custom_minimum_size = Vector2(600, 64)
 	for btn: Button in [_btn_attack, _btn_bonus, _btn_charge, _btn_pass]:
-		btn.custom_minimum_size = Vector2(104, 56)
+		btn.custom_minimum_size = Vector2(112, 68)
 	_btn_pass.tooltip_text = "End the active unit's turn."
 
 	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.05, 0.05, 0.09, 1.0)
-	panel_style.border_color = Color(1.0, 0.133, 0.267, 0.6)
+	panel_style.bg_color = Color(0.028, 0.030, 0.045, 0.96)
+	panel_style.border_color = Color(1.0, 0.133, 0.267, 0.54)
 	panel_style.set_border_width_all(1)
 
-	for panel: PanelContainer in [$Layout/TopBar, $Layout/BottomBar,
-			$Layout/MainRow/PlayerHPPanel, $Layout/MainRow/EnemyHPPanel]:
+	for panel: PanelContainer in [$Layout/TopBar, $Layout/BottomBar, _combat_log_bar]:
 		panel.add_theme_stylebox_override("panel", panel_style.duplicate())
+
+	var card_style := StyleBoxFlat.new()
+	card_style.bg_color = Color(0.0, 0.0, 0.0, 0.34)
+	card_style.border_color = Color(0.0, 1.0, 0.8, 0.42)
+	card_style.set_border_width_all(1)
+	card_style.content_margin_left = 10
+	card_style.content_margin_right = 10
+	card_style.content_margin_top = 7
+	card_style.content_margin_bottom = 7
+	_active_unit_card.add_theme_stylebox_override("panel", card_style)
 
 	var overlay_style := StyleBoxFlat.new()
 	overlay_style.bg_color = Color(0.0, 0.0, 0.0, 0.78)
@@ -330,23 +335,20 @@ func _apply_styles() -> void:
 	overlay_style.set_border_width_all(2)
 	_result_overlay.add_theme_stylebox_override("panel", overlay_style)
 
-	for lbl: Label in [$Layout/BottomBar/HBox/LblUnitInfo,
-			$Layout/MainRow/PlayerHPPanel/PlayerList/LblPlayerTitle,
-			$Layout/MainRow/EnemyHPPanel/EnemyList/LblEnemyTitle]:
-		lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.85, 1.0))
-		lbl.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
+	_lbl_unit_info.add_theme_color_override("font_color", Color(0.86, 0.90, 0.96, 1.0))
+	_lbl_unit_info.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
-	# Top bar: player team name cyan, enemy team red, objective amber centre
+	# Broadcast scorebug: player team cyan, objective amber centre, enemy team red.
 	_lbl_round.text = "IRON LEGION"
 	_lbl_round.add_theme_color_override("font_color", COLOR_PLAYER)
-	_lbl_round.add_theme_font_size_override("font_size", UITheme.SIZE_XS)
+	_lbl_round.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 	_lbl_turn.text = "CRIMSON VIPERS"
 	_lbl_turn.add_theme_color_override("font_color", COLOR_ENEMY)
-	_lbl_turn.add_theme_font_size_override("font_size", UITheme.SIZE_XS)
+	_lbl_turn.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 	$Layout/TopBar/HBox/LblObjective.add_theme_color_override("font_color", Color(1.0, 0.667, 0.0, 1.0))
-	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", UITheme.SIZE_XS)
+	$Layout/TopBar/HBox/LblObjective.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 	_style_button(_btn_attack)
 	_style_button(_btn_bonus)
@@ -545,9 +547,6 @@ func _build_units() -> void:
 		g["ring_node"] = null
 		g["shadow_node"] = null
 		g["status_node"] = null
-		g["hp_bar_node"] = null
-		g["hp_row_node"] = null
-		g["hp_name_node"] = null
 		var skill_key: String = String(g.get("skill", ""))
 		if skill_key == "" and i < _DEFAULT_SKILL_BY_INDEX.size():
 			skill_key = _DEFAULT_SKILL_BY_INDEX[i]
@@ -593,9 +592,6 @@ func _build_units() -> void:
 			"ring_node": null,
 			"shadow_node": null,
 			"status_node": null,
-			"hp_bar_node": null,
-			"hp_row_node": null,
-			"hp_name_node": null,
 		}
 		var e_con_mod: int = _stat_mod(int(e["constitution"]))
 		var e_dex_mod: int = _stat_mod(int(e["dexterity"]))
@@ -629,13 +625,21 @@ func _reset_turn_state(unit: Dictionary) -> void:
 
 func _iso_to_screen(grid_pos: Vector2i) -> Vector2:
 	var arena_size: Vector2 = _arena.size
-	var tile_w: float = arena_size.x / (GRID_COLS + 1.0)
-	var tile_h: float = arena_size.y / (GRID_ROWS + 2.0)
-	var cx: float = arena_size.x * 0.5
-	var cy: float = arena_size.y * 0.35
-	var x: float = cx + (grid_pos.x - grid_pos.y) * tile_w * 0.5
-	var y: float = cy + (grid_pos.x + grid_pos.y) * tile_h * 0.4
-	return Vector2(x - UNIT_SIZE.x * 0.5, y - UNIT_SIZE.y * 0.5)
+	return _iso_to_screen_center(grid_pos, arena_size) - UNIT_SIZE * 0.5
+
+
+func _iso_to_screen_center(grid_pos: Vector2i, arena_size: Vector2) -> Vector2:
+	var board_center := arena_size * BOARD_CENTER_RATIO
+	var board_size := arena_size * BOARD_SIZE_RATIO
+	var diff_min := -float(GRID_ROWS - 1)
+	var diff_max := float(GRID_COLS - 1)
+	var sum_min := 0.0
+	var sum_max := float(GRID_COLS + GRID_ROWS - 2)
+	var diff := float(grid_pos.x - grid_pos.y)
+	var sum := float(grid_pos.x + grid_pos.y)
+	var nx := inverse_lerp(diff_min, diff_max, diff) - 0.5
+	var ny := inverse_lerp(sum_min, sum_max, sum) - 0.5
+	return board_center + Vector2(nx * board_size.x, ny * board_size.y)
 
 
 func _get_active_unit() -> Dictionary:
@@ -961,95 +965,24 @@ func _on_move_tile_mouse_exited(tile: BattleIsoTile) -> void:
 	tile.setup(COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48), 2.0, BattleIsoTile.VARIANT_MOVE)
 
 
-func _build_hp_bars() -> void:
-	for unit: Dictionary in _units:
-		var row := PanelContainer.new()
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.custom_minimum_size = Vector2(132, 36)
-
-		var container := VBoxContainer.new()
-		container.add_theme_constant_override("separation", 2)
-		row.add_child(container)
-
-		var name_lbl := Label.new()
-		name_lbl.text = unit["name"]
-		name_lbl.add_theme_font_size_override("font_size", UITheme.SIZE_XXS)
-		var name_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
-		name_lbl.add_theme_color_override("font_color", name_color)
-		container.add_child(name_lbl)
-
-		var bar := ProgressBar.new()
-		bar.min_value = 0
-		bar.max_value = unit["hp_max"]
-		bar.value = unit["hp_current"]
-		bar.custom_minimum_size = Vector2(130, 12)
-		bar.show_percentage = false
-		container.add_child(bar)
-
-		unit["hp_bar_node"] = bar
-		unit["hp_row_node"] = row
-		unit["hp_name_node"] = name_lbl
-		_style_hp_row(unit, false)
-
-		if unit["team"] == "player":
-			_player_list.add_child(row)
-		else:
-			_enemy_list.add_child(row)
-
-
-func _style_hp_row(unit: Dictionary, active := false) -> void:
-	var row := unit.get("hp_row_node", null) as PanelContainer
-	var bar := unit.get("hp_bar_node", null) as ProgressBar
-	var name_lbl := unit.get("hp_name_node", null) as Label
-	if row == null or bar == null or name_lbl == null:
-		return
-
-	var team_color: Color = COLOR_PLAYER if unit["team"] == "player" else COLOR_ENEMY
-	var hp_pct := float(unit.get("hp_current", 0)) / maxf(1.0, float(unit.get("hp_max", 1)))
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.0, 0.0, 0.0, 0.22) if active else Color(0, 0, 0, 0)
-	panel_style.border_color = team_color if active else Color(0, 0, 0, 0)
-	panel_style.set_border_width_all(1 if active else 0)
-	row.add_theme_stylebox_override("panel", panel_style)
-
-	var fill := StyleBoxFlat.new()
-	if hp_pct <= 0.33:
-		fill.bg_color = COLOR_ENEMY
-	elif hp_pct <= 0.66:
-		fill.bg_color = Color(1.0, 0.667, 0.0, 1.0)
-	else:
-		fill.bg_color = team_color
-	bar.add_theme_stylebox_override("fill", fill)
-
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.18, 0.18, 0.22, 0.92)
-	bar.add_theme_stylebox_override("background", bg)
-	name_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 1) if active else team_color)
-
-
-func _update_hp_row_visuals(active_unit: Dictionary) -> void:
-	for unit: Dictionary in _units:
-		_style_hp_row(unit, unit == active_unit)
-
-
 func _update_objective_label() -> void:
 	var sponsor_name: String = _sponsor.get("name", "SPONSOR")
-	var style_tag := "  STYLE: %d" % _style_score if _style_score > 0 else ""
+	var style_tag := "  STYLE %d" % _style_score if _style_score > 0 else ""
 	match _sponsor.get("type", "kills"):
 		"style":
 			var req_rounds: int = int(_sponsor.get("requirement_rounds", 1))
-			_lbl_objective.text = "ROUND %d  |  %s: WIN IN ≤ %d ROUNDS%s" % [
+			_lbl_objective.text = "R%d  |  %s  WIN <= %d ROUNDS%s" % [
 				_round, sponsor_name, req_rounds, style_tag
 			]
 		"target":
 			var target_name: String = _sponsor.get("requirement_target", "?")
 			var status: String = "ELIMINATED" if _mark_killed else "ALIVE"
-			_lbl_objective.text = "ROUND %d  |  %s: EXECUTE %s  [%s]%s" % [
+			_lbl_objective.text = "R%d  |  %s  EXECUTE %s  [%s]%s" % [
 				_round, sponsor_name, target_name, status, style_tag
 			]
 		_:
 			var req: int = int(_sponsor.get("requirement_kills", 0))
-			_lbl_objective.text = "ROUND %d  |  %s: KILL %d  [%d/%d]%s" % [
+			_lbl_objective.text = "R%d  |  %s  KILL %d  [%d/%d]%s" % [
 				_round, sponsor_name, req, _kills, req, style_tag
 			]
 
@@ -1057,7 +990,7 @@ func _update_objective_label() -> void:
 func _update_unit_info(unit: Dictionary) -> void:
 	var move_state := "USED" if bool(unit.get("has_moved", false)) else "READY"
 	var action_state := "READY" if bool(unit.get("has_main_action", true)) else "USED"
-	var bonus_state := "BONUS" if bool(unit.get("has_bonus_action", true)) else "USED"
+	var bonus_state := "READY" if bool(unit.get("has_bonus_action", true)) else "USED"
 	var skill_part := ""
 	var skill_key := String(unit.get("skill", ""))
 	if skill_key != "" and SkillData.SKILLS.has(skill_key):
@@ -1076,7 +1009,7 @@ func _update_unit_info(unit: Dictionary) -> void:
 	var skill_line := skill_part.strip_edges()
 	if skill_line == "":
 		skill_line = "SKILL: NONE"
-	_lbl_unit_info.text = "%s  |  HP %d/%d  STR %d  SPD %d  ARM %d\nMOVE %s  |  ACTION %s  |  BONUS %s  |  %s" % [
+	_lbl_unit_info.text = "%s    HP %d/%d    STR %d  SPD %d  ARM %d\n[MOVE %s]  [ACTION %s]  [BONUS %s]    %s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
 		unit["strength"], unit["speed"], unit["armor"],
@@ -1118,13 +1051,14 @@ func _highlight_active(active_unit: Dictionary) -> void:
 		if unit.get("visual_root", null) == null and unit["rect_node"] == null:
 			continue
 		_update_unit_visual(unit, active_unit)
-	_update_hp_row_visuals(active_unit)
 
 
 func _update_unit_visual(unit: Dictionary, active_unit: Dictionary) -> void:
 	var visual := unit.get("visual_root", null) as BattleUnitVisual
 	if visual != null:
 		var hp_max := maxf(1.0, float(unit.get("hp_max", 1)))
+		var team_color: Color = COLOR_PLAYER if unit.get("team", "") == "player" else COLOR_ENEMY
+		visual.set_hp(int(unit.get("hp_current", 0)), int(unit.get("hp_max", 1)), team_color, unit == active_unit)
 		visual.set_state({
 			"active": unit == active_unit,
 			"selected": unit == _selected_target and _is_valid_target(unit),
@@ -1700,9 +1634,6 @@ func _get_enemy_move_destination(unit: Dictionary, target: Dictionary) -> Vector
 func _apply_damage(target: Dictionary, amount: int, show_hit_feedback := true) -> bool:
 	var locked_by_damage := false
 	target["hp_current"] = maxi(0, int(target["hp_current"]) - amount)
-	if target["hp_bar_node"] != null:
-		(target["hp_bar_node"] as ProgressBar).value = target["hp_current"]
-		_style_hp_row(target, target == _get_active_unit())
 	if not _initiative.is_empty() and _units.has(target):
 		_update_unit_visual(target, _get_active_unit())
 	if show_hit_feedback:
@@ -1877,14 +1808,6 @@ func _remove_dead(unit: Dictionary) -> void:
 	if unit.get("ring_node", null) != null:
 		(unit["ring_node"] as Control).queue_free()
 		unit["ring_node"] = null
-	if unit["hp_bar_node"] != null:
-		if unit.get("hp_row_node", null) != null:
-			(unit["hp_row_node"] as Control).queue_free()
-		else:
-			(unit["hp_bar_node"] as ProgressBar).get_parent().queue_free()
-		unit["hp_bar_node"] = null
-		unit["hp_row_node"] = null
-		unit["hp_name_node"] = null
 	if _selected_target == unit:
 		_selected_target = null
 	if _hovered_target == unit:
