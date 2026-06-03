@@ -4,3 +4,4 @@
 
 # Claude Code — keep MCP secrets out of version control
 .claude/.mcp.json
+.claude/scheduled_tasks.lock

@@ -17,12 +17,15 @@ Combat exists to serve a **churn-focused** roster game (see `docs/GAME_DESIGN.md
 
 The tactical combat foundation is live in `scripts/Battle.gd`:
 
-- Arena grid is 9x6.
-- Each battle selects one of three local arena layouts with named blockers, hazards, player spawns, and enemy spawns.
+- Arena grid is a configurable 13x9 logical grid with an ellipse mask, so valid playable tiles follow the arena footprint instead of a simple rectangle.
+- Each battle selects one of three local arena layouts with named blockers, rough/raised/high terrain, Plasma Vents, player spawns, and enemy spawns.
 - Player turns show clickable highlighted movement tiles for reachable empty spaces.
-- Movement uses path-aware BFS, so blockers and occupied units shape actual routes instead of only Manhattan distance.
+- Movement uses path-aware movement costs, so blockers, occupied units, invalid ellipse tiles, and rough terrain shape actual routes instead of only Manhattan distance.
 - Blockers are impassable and stop Brutal Charge.
-- Hazards are walkable in v1; forced movement into a hazard deals 2 damage and grants STYLE +1 against enemies.
+- Tile metadata stores grid coordinate, world position, walkable/blocked state, occupant id, terrain type, elevation, movement cost, cover type, hazard type, and hazard state.
+- Raised and high terrain are visually distinct. Higher attackers gain +1 attack total and +1 effective range against lower targets; attackers below their target take -1 to the attack total. Forced movement from higher to lower terrain deals fall damage.
+- Plasma Vents cycle once per full round: idle -> warning -> active -> idle. Warning marks next-round danger; active vents deal high damage when entered or when a unit ends its turn on them.
+- Shove pushes an adjacent enemy 1 tile away, previews the shove result, deals collision damage against blockers/units/edges, triggers active vents, applies fall damage on downward forced movement, and can cause lethal ring-outs when pushed outside the valid ellipse.
 - Units have `move_range`, `attack_range`, `has_moved`, `has_main_action`, and `has_bonus_action` fields, all reset each turn.
 - Movement is once per turn; basic attacks consume the main action and require melee range unless a passive changes range.
 - Enemy AI advances toward the nearest living player using reachable movement tiles, then attacks if in range.
@@ -30,8 +33,8 @@ The tactical combat foundation is live in `scripts/Battle.gd`:
 - Bonus actions use a single `BtnBonus` button and PopupMenu listing available actions.
 - Battle presentation uses contextual isometric diamond highlights instead of rectangular boxes, tweened path movement for player/enemy moves plus shoves/charges, foot-ring selection states, hit/miss/damage floaters, and downed/eliminated fade-outs. These are presentation hooks only; combat rules and save data are unchanged.
 - Unit presentation is routed through a runtime `BattleUnitVisual` wrapper (`visual_root`, shadow, ring, sprite, status marker, floating HP bar). Normalized 6x6 animation sheets live under `assets/sprites/gladiators/` for Brutal Charge, Marksman, Execution Mark, Shield Bash, and enemy bruisers; the old `assets/sprites/gladiators.png` atlas remains the fallback if a sheet is missing or malformed. Idle presentation is intentionally quiet but alive: units hold a stable stance frame with a tiny vertical pulse, while the active unit gets a stronger procedural bob.
-- Arena presentation uses reusable drawn `BattleIsoTile` variants for move range, hovered paths, attack range, valid targets, invalid targets, raised blocker diamonds, and pulsing hazard diamonds over a generated raster broadcast-arena background. A bounded board projection keeps the 9x6 playable field inside the painted floor, while a tactical zoom preset makes gameplay units read larger without changing combat rules. The battle HUD uses faction base rings, active-unit glow/pulse, hover/selected nameplates, raised on-unit HP bars, broadcast-style scorebug pods, active-unit identity/state chips, clearer action button states, and a compact live-feed ticker so status no longer lives in full-height side rails. `BattleCombatEffect` owns transient melee impact, ranged streak, crit feedback, floating damage/miss text, short hit holds, and small arena impact bumps.
-- **Attack resolution:** `1d20 + attack_bonus vs target.defense_class`. Miss = no damage. Hit = `weapon_die + stat_mod` (min 1). Crit (nat 20) = double dice. Proficiency +2 for recruits. Melee: 1d6 + STR_mod. Ranged (Marksman): 1d8 + DEX_mod. Flanking or Execution Mark grants advantage.
+- Arena presentation uses reusable drawn `BattleIsoTile` variants for move range, hovered paths, attack range, valid targets, invalid targets, raised/high/rough terrain, Plasma Vent warning/active states, shove previews, ring-out danger, and blockers over a generated raster broadcast-arena background. A bounded board projection keeps the ellipse-masked playable field inside the painted floor, while a tactical zoom preset makes gameplay units read larger without changing combat rules. The battle HUD uses faction base rings, active-unit glow/pulse, hover/selected nameplates, raised on-unit HP bars, broadcast-style scorebug pods, active-unit identity/state chips, clearer action button states, and a compact live-feed ticker so status no longer lives in full-height side rails. `BattleCombatEffect` owns transient melee impact, ranged streak, crit feedback, floating damage/miss text, short hit holds, and small arena impact bumps.
+- **Attack resolution:** `1d20 + attack_bonus + elevation_modifier vs target.defense_class`. Miss = no damage. Hit = `weapon_die + stat_mod` (min 1). Crit (nat 20) = double dice. Proficiency +2 for recruits. Melee: 1d6 + STR_mod. Ranged (Marksman): 1d8 + DEX_mod. Flanking or Execution Mark grants advantage.
 - **Current HP formula:** `max_hp = 8 + CON_mod`.
 
 Character skills are data-driven in `scripts/SkillData.gd`: Brutal Charge, Marksman, Execution Mark, and Shield Bash. Skills are assigned in `_build_units()` via a fallback index array, forward-compatible with a per-gladiator `skill` field once the roster system expands.
@@ -121,7 +124,7 @@ Implemented examples:
 - **Marksman:** Passive. Ranged attacks at distance 2 using DEX.
 - **Execution Mark:** Bonus action. Mark a wounded adjacent enemy, granting advantage against it this battle.
 - **Shield Bash:** Bonus action. Deal 2 damage to an adjacent enemy. It does not push in the current slice.
-- **Shove:** Universal bonus action. Push an adjacent enemy, slam them into an obstruction, or force them into a hazard.
+- **Shove:** Universal bonus action. Push an adjacent enemy, slam them into an obstruction, force them into an active Plasma Vent, knock them down elevation for fall damage, or ring them out at lethal arena edges.
 
 Future examples:
 

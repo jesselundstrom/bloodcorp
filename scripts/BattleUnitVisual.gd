@@ -5,13 +5,17 @@ class ShadowNode:
 	extends Control
 
 	func _draw() -> void:
-		var points := PackedVector2Array([
-			Vector2(size.x * 0.5, size.y * 0.12),
-			Vector2(size.x * 0.95, size.y * 0.5),
-			Vector2(size.x * 0.5, size.y * 0.88),
-			Vector2(size.x * 0.05, size.y * 0.5),
-		])
-		draw_polygon(points, PackedColorArray([Color(0, 0, 0, 0.34)]))
+		var center := size * 0.5
+		var radius := Vector2(size.x * 0.38, size.y * 0.24)
+		_draw_ellipse_fill(center, radius, Color(0, 0, 0, 0.18))
+		_draw_ellipse_fill(center + Vector2(0, 1), radius * 0.52, Color(0, 0, 0, 0.10))
+
+	func _draw_ellipse_fill(center: Vector2, radius: Vector2, color: Color) -> void:
+		var points := PackedVector2Array()
+		for i in range(40):
+			var t := TAU * float(i) / 40.0
+			points.append(center + Vector2(cos(t) * radius.x, sin(t) * radius.y))
+		draw_polygon(points, PackedColorArray([color]))
 
 
 class RingNode:
@@ -36,18 +40,21 @@ class RingNode:
 	func _draw() -> void:
 		if ring_color.a <= 0.0 or ring_width <= 0.0:
 			return
-		var points := PackedVector2Array([
-			Vector2(size.x * 0.5, 0),
-			Vector2(size.x, size.y * 0.5),
-			Vector2(size.x * 0.5, size.y),
-			Vector2(0, size.y * 0.5),
-			Vector2(size.x * 0.5, 0),
-		])
+		var center := size * 0.5
+		var radius := Vector2(size.x * 0.42, size.y * 0.27)
 		if pulse_enabled:
-			var pulse_alpha := 0.20 + 0.22 * (sin(_pulse) * 0.5 + 0.5)
+			var pulse_alpha := 0.14 + 0.16 * (sin(_pulse) * 0.5 + 0.5)
 			var pulse_color := Color(ring_color.r, ring_color.g, ring_color.b, pulse_alpha)
-			draw_polyline(points, pulse_color, ring_width + 3.0, true)
-		draw_polyline(points, ring_color, ring_width, true)
+			_draw_ellipse_outline(center, radius * 1.16, pulse_color, ring_width + 4.0)
+			_draw_ellipse_outline(center, radius * 0.76, Color(pulse_color.r, pulse_color.g, pulse_color.b, pulse_color.a * 0.45), ring_width + 2.0)
+		_draw_ellipse_outline(center, radius, ring_color, ring_width)
+
+	func _draw_ellipse_outline(center: Vector2, radius: Vector2, color: Color, width: float) -> void:
+		var points := PackedVector2Array()
+		for i in range(41):
+			var t := TAU * float(i) / 40.0
+			points.append(center + Vector2(cos(t) * radius.x, sin(t) * radius.y))
+		draw_polyline(points, color, width, true)
 
 
 class StatusNode:
@@ -309,17 +316,17 @@ func set_state(state: Dictionary) -> void:
 	var team_color: Color = state.get("team_color", Color(0.0, 1.0, 0.8, 1.0))
 	sprite_node.modulate = Color(1.28, 1.28, 1.28, 1.0) if hovered and targetable else Color(1, 1, 1, 1)
 
-	base_ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.56), 2.0)
+	base_ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.16), 1.0)
 	if selected:
-		ring_node.setup(Color(1, 1, 1, 1), 4.0, true)
+		ring_node.setup(Color(1, 1, 1, 0.92), 3.0, true)
 	elif hovered and targetable:
-		ring_node.setup(Color(1, 1, 1, 0.64), 3.0)
+		ring_node.setup(Color(1, 1, 1, 0.58), 2.0)
 	elif active:
-		ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.95), 4.0, true)
+		ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.82), 3.0, true)
 	elif bool(state.get("sponsor_mark", false)):
-		ring_node.setup(Color(1.0, 0.667, 0.0, 0.9), 2.0)
+		ring_node.setup(Color(1.0, 0.667, 0.0, 0.76), 2.0)
 	elif bool(state.get("execution_mark", false)):
-		ring_node.setup(Color(0.8, 0.0, 1.0, 1.0), 2.0)
+		ring_node.setup(Color(0.8, 0.0, 1.0, 0.82), 2.0)
 	else:
 		ring_node.setup(Color(0, 0, 0, 0), 0.0)
 

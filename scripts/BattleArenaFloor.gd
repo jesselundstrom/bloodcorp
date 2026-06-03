@@ -10,15 +10,17 @@ var board_size_ratio := Vector2(0.52, 0.42)
 var accent_color := Color(0.0, 1.0, 0.8, 1.0)
 var enemy_color := Color(1.0, 0.133, 0.267, 1.0)
 var warning_color := Color(1.0, 0.667, 0.0, 1.0)
+var valid_tiles: Array = []
 
 
-func setup(cols: int, rows: int, p_tile_size: Vector2, p_unit_size: Vector2, p_board_center_ratio: Vector2, p_board_size_ratio: Vector2) -> void:
+func setup(cols: int, rows: int, p_tile_size: Vector2, p_unit_size: Vector2, p_board_center_ratio: Vector2, p_board_size_ratio: Vector2, p_valid_tiles: Array = []) -> void:
 	grid_cols = cols
 	grid_rows = rows
 	tile_size = p_tile_size
 	unit_size = p_unit_size
 	board_center_ratio = p_board_center_ratio
 	board_size_ratio = p_board_size_ratio
+	valid_tiles = p_valid_tiles.duplicate()
 	queue_redraw()
 
 
@@ -35,11 +37,15 @@ func _draw() -> void:
 
 
 func _draw_grid_lattice() -> void:
-	for y in range(grid_rows):
-		for x in range(grid_cols):
-			var center := _grid_center(Vector2i(x, y))
-			var points := _diamond(center, tile_size * 0.96)
-			draw_polyline(_closed(points), Color(0.0, 1.0, 0.8, 0.10), 1.0, true)
+	var tiles := valid_tiles
+	if tiles.is_empty():
+		for y in range(grid_rows):
+			for x in range(grid_cols):
+				tiles.append(Vector2i(x, y))
+	for pos: Vector2i in tiles:
+		var center := _grid_center(pos)
+		var points := _diamond(center, tile_size * 0.94)
+		draw_polyline(_closed(points), Color(0.0, 1.0, 0.8, 0.075), 1.0, true)
 
 
 func _draw_broadcast_marks() -> void:

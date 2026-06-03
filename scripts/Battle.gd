@@ -8,6 +8,41 @@ const BattleCombatEffectScene := preload("res://scripts/BattleCombatEffect.gd")
 const BattleAnimatedPropScene := preload("res://scripts/BattleAnimatedProp.gd")
 
 
+class MovementPathPreview:
+	extends Control
+
+	var path_points: Array = []
+	var accent_color := Color(0.92, 0.96, 1.0, 0.92)
+	var destination_color := Color(0.0, 1.0, 0.8, 0.72)
+
+	func setup(points: Array, p_accent_color: Color, p_destination_color: Color) -> void:
+		path_points = points.duplicate()
+		accent_color = p_accent_color
+		destination_color = p_destination_color
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		queue_redraw()
+
+	func _draw() -> void:
+		if path_points.size() < 2:
+			return
+		for i in range(path_points.size() - 1):
+			var from_pos: Vector2 = path_points[i]
+			var to_pos: Vector2 = path_points[i + 1]
+			draw_line(from_pos, to_pos, Color(0, 0, 0, 0.72), 6.0, true)
+			draw_line(from_pos, to_pos, accent_color, 2.4, true)
+		var destination: Vector2 = path_points[path_points.size() - 1]
+		_draw_ellipse_outline(destination, Vector2(28, 13), Color(0, 0, 0, 0.58), 5.0)
+		_draw_ellipse_outline(destination, Vector2(27, 12), destination_color, 2.5)
+		draw_circle(destination, 3.0, Color(1.0, 1.0, 1.0, 0.88))
+
+	func _draw_ellipse_outline(center: Vector2, radius: Vector2, color: Color, width: float) -> void:
+		var points := PackedVector2Array()
+		for i in range(49):
+			var t := TAU * float(i) / 48.0
+			points.append(center + Vector2(cos(t) * radius.x, sin(t) * radius.y))
+		draw_polyline(points, color, width, true)
+
+
 const ENEMY_NAMES := [
 	"GRAK", "VOSS", "ZARETH", "NAXIS", "KRUL", "THANE", "OREX", "VELD",
 	"CRUX", "MORD", "SLASH", "BONE", "WREX", "DRAK", "TYKE", "SORN",
@@ -16,8 +51,9 @@ const ENEMY_NAMES := [
 
 # Sponsor data is read from GameState.active_sponsor at _ready.
 
-const GRID_COLS := 9
-const GRID_ROWS := 6
+const GRID_COLS := 13
+const GRID_ROWS := 9
+const GRID_ELLIPSE_RADIUS := Vector2(6.2, 4.1)
 const TACTICAL_CAMERA_ZOOM := 1.25
 const UNIT_SIZE := Vector2(56, 56) * TACTICAL_CAMERA_ZOOM
 const MOVE_TILE_SIZE := Vector2(42, 28) * TACTICAL_CAMERA_ZOOM
@@ -35,7 +71,7 @@ const PROP_HAZARD_ANIM_FRAMES := 9
 const PROP_HAZARD_ANIM_FRAME_DURATION := 0.09
 const PROP_SIZE := Vector2(52, 52) * TACTICAL_CAMERA_ZOOM
 const BOARD_CENTER_RATIO := Vector2(0.50, 0.56)
-const BOARD_SIZE_RATIO := Vector2(0.52, 0.42)
+const BOARD_SIZE_RATIO := Vector2(0.68, 0.56)
 
 # Sprite sheet: 1536x1024, 3 columns x 2 rows of 512x512 frames
 const SPRITE_SHEET_PATH := "res://assets/sprites/gladiators.png"
@@ -70,6 +106,10 @@ const COLOR_ATTACK_DISABLED := Color(0.22, 0.22, 0.25, 1.0)
 const COLOR_MOVE_TILE := Color(0.0, 1.0, 0.8, 0.28)
 const COLOR_MOVE_TILE_HOVER := Color(0.0, 1.0, 0.8, 0.52)
 const COLOR_PATH_TILE := Color(1.0, 0.667, 0.0, 0.36)
+const COLOR_MOVE_HIT_TILE := Color(0.0, 1.0, 0.8, 0.035)
+const COLOR_MOVE_HIT_BORDER := Color(0.0, 1.0, 0.8, 0.12)
+const COLOR_MOVE_PATH_LINE := Color(0.92, 0.96, 1.0, 0.92)
+const COLOR_MOVE_DESTINATION := Color(0.0, 1.0, 0.8, 0.78)
 const COLOR_ATTACK_RANGE_TILE := Color(1.0, 0.133, 0.267, 0.09)
 const COLOR_VALID_TARGET_TILE := Color(1.0, 0.133, 0.267, 0.34)
 const COLOR_INVALID_TARGET_TILE := Color(0.55, 0.42, 0.46, 0.16)
@@ -78,6 +118,13 @@ const COLOR_OBSTACLE := Color(0.10, 0.08, 0.06, 0.68)
 const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.45)
 const COLOR_HAZARD := Color(1.0, 0.133, 0.267, 0.22)
 const COLOR_HAZARD_BORDER := Color(1.0, 0.667, 0.0, 0.9)
+const COLOR_HAZARD_WARNING := Color(1.0, 0.667, 0.0, 0.22)
+const COLOR_HAZARD_ACTIVE := Color(1.0, 0.08, 0.04, 0.34)
+const COLOR_ELEVATION := Color(0.0, 1.0, 0.8, 0.10)
+const COLOR_HIGH_GROUND := Color(1.0, 0.667, 0.0, 0.14)
+const COLOR_ROUGH := Color(0.62, 0.70, 0.78, 0.10)
+const COLOR_PUSH_PREVIEW := Color(1.0, 0.667, 0.0, 0.28)
+const COLOR_RING_OUT := Color(1.0, 0.0, 0.04, 0.34)
 const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
 const COLOR_MARK := Color(0.8, 0.0, 1.0, 1.0)
 const PROFICIENCY_BONUS := 2  # recruit tier; +3 veteran / +4 champion once rank field lands
@@ -85,37 +132,78 @@ const _DEFAULT_SKILL_BY_INDEX: Array = ["brutal_charge", "marksman", "execution_
 const MELEE_DAMAGE_DIE := 6   # 1d6 placeholder until weapon system
 const RANGED_DAMAGE_DIE := 8  # 1d8 placeholder for Marksman
 const SHOVE_IMPACT_DAMAGE := 2
+const FALL_DAMAGE := 2
+const PLASMA_VENT_DAMAGE := 4
+const RING_OUT_DAMAGE := 99
+const ELEVATION_ATTACK_BONUS := 1
+const ELEVATION_RANGE_BONUS := 1
+const LETHAL_EDGES_ENABLED := true
+
+const TERRAIN_NORMAL := "normal"
+const TERRAIN_ROUGH := "rough"
+const TERRAIN_RAISED := "raised"
+const TERRAIN_HIGH := "high"
+const TERRAIN_HAZARD := "hazard"
+const TERRAIN_BLOCKED := "blocked"
+const COVER_NONE := "none"
+const HAZARD_NONE := "none"
+const HAZARD_PLASMA_VENT := "plasma_vent"
+const HAZARD_IDLE := "idle"
+const HAZARD_WARNING := "warning"
+const HAZARD_ACTIVE := "active"
+const HAZARD_STATES := [HAZARD_IDLE, HAZARD_WARNING, HAZARD_ACTIVE]
 
 const ARENA_LAYOUTS: Array = [
 	{
 		"name": "FURNACE RUN",
-		"blockers": [Vector2i(3, 1), Vector2i(5, 1), Vector2i(4, 4)],
-		"hazards": [Vector2i(4, 2), Vector2i(4, 3), Vector2i(2, 3), Vector2i(6, 2)],
-		"player_spawns": [
-			Vector2i(1, 2), Vector2i(1, 3), Vector2i(2, 1), Vector2i(2, 4), Vector2i(1, 1),
-			Vector2i(1, 4), Vector2i(2, 2), Vector2i(2, 3), Vector2i(0, 2)
+		"blockers": [Vector2i(5, 2), Vector2i(8, 5), Vector2i(4, 6)],
+		"rough": [Vector2i(4, 3), Vector2i(4, 4), Vector2i(8, 4), Vector2i(8, 6)],
+		"raised": [Vector2i(5, 3), Vector2i(5, 4), Vector2i(7, 4), Vector2i(7, 5)],
+		"high": [Vector2i(6, 4)],
+		"plasma_vents": [
+			{"pos": Vector2i(6, 2), "phase": 1},
+			{"pos": Vector2i(6, 6), "phase": 2},
+			{"pos": Vector2i(9, 4), "phase": 0},
 		],
-		"enemy_spawns": [Vector2i(7, 2), Vector2i(7, 3), Vector2i(6, 1), Vector2i(6, 4), Vector2i(7, 4)],
+		"player_spawns": [
+			Vector2i(1, 4), Vector2i(2, 3), Vector2i(2, 5), Vector2i(1, 3), Vector2i(1, 5),
+			Vector2i(3, 4), Vector2i(2, 2), Vector2i(2, 6), Vector2i(3, 3)
+		],
+		"enemy_spawns": [Vector2i(11, 4), Vector2i(10, 3), Vector2i(10, 5), Vector2i(11, 3), Vector2i(11, 5)],
 	},
 	{
 		"name": "BROKEN PILLARS",
-		"blockers": [Vector2i(3, 1), Vector2i(5, 1), Vector2i(4, 3), Vector2i(2, 4), Vector2i(6, 4)],
-		"hazards": [Vector2i(4, 2), Vector2i(3, 3), Vector2i(5, 3)],
-		"player_spawns": [
-			Vector2i(1, 1), Vector2i(1, 4), Vector2i(2, 2), Vector2i(2, 3), Vector2i(1, 2),
-			Vector2i(1, 3), Vector2i(2, 0), Vector2i(2, 5), Vector2i(0, 2)
+		"blockers": [Vector2i(5, 3), Vector2i(7, 5), Vector2i(9, 3)],
+		"rough": [Vector2i(4, 5), Vector2i(5, 5), Vector2i(8, 3), Vector2i(8, 4)],
+		"raised": [Vector2i(6, 2), Vector2i(6, 3), Vector2i(7, 3), Vector2i(7, 4)],
+		"high": [Vector2i(6, 4), Vector2i(7, 2)],
+		"plasma_vents": [
+			{"pos": Vector2i(4, 4), "phase": 0},
+			{"pos": Vector2i(8, 6), "phase": 1},
+			{"pos": Vector2i(9, 5), "phase": 2},
 		],
-		"enemy_spawns": [Vector2i(7, 1), Vector2i(7, 4), Vector2i(6, 2), Vector2i(6, 3), Vector2i(7, 3)],
+		"player_spawns": [
+			Vector2i(1, 3), Vector2i(1, 5), Vector2i(2, 4), Vector2i(2, 2), Vector2i(2, 6),
+			Vector2i(3, 3), Vector2i(3, 5), Vector2i(1, 4), Vector2i(2, 3)
+		],
+		"enemy_spawns": [Vector2i(11, 3), Vector2i(11, 5), Vector2i(10, 4), Vector2i(10, 2), Vector2i(10, 6)],
 	},
 	{
 		"name": "BLOOD CHANNELS",
-		"blockers": [Vector2i(4, 0), Vector2i(4, 5), Vector2i(2, 2), Vector2i(6, 3)],
-		"hazards": [Vector2i(3, 2), Vector2i(4, 2), Vector2i(5, 2), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)],
-		"player_spawns": [
-			Vector2i(1, 2), Vector2i(1, 3), Vector2i(2, 1), Vector2i(2, 4), Vector2i(1, 1),
-			Vector2i(1, 4), Vector2i(1, 0), Vector2i(1, 5), Vector2i(0, 2)
+		"blockers": [Vector2i(4, 3), Vector2i(8, 5)],
+		"rough": [Vector2i(5, 3), Vector2i(5, 4), Vector2i(6, 5), Vector2i(7, 5)],
+		"raised": [Vector2i(6, 2), Vector2i(7, 2), Vector2i(6, 3), Vector2i(7, 3), Vector2i(8, 3)],
+		"high": [Vector2i(7, 4)],
+		"plasma_vents": [
+			{"pos": Vector2i(6, 4), "phase": 2},
+			{"pos": Vector2i(9, 4), "phase": 1},
+			{"pos": Vector2i(3, 5), "phase": 0},
 		],
-		"enemy_spawns": [Vector2i(7, 2), Vector2i(7, 3), Vector2i(6, 1), Vector2i(6, 4), Vector2i(7, 4)],
+		"player_spawns": [
+			Vector2i(1, 4), Vector2i(2, 3), Vector2i(2, 5), Vector2i(1, 3), Vector2i(1, 5),
+			Vector2i(3, 4), Vector2i(2, 2), Vector2i(2, 6), Vector2i(3, 5)
+		],
+		"enemy_spawns": [Vector2i(11, 4), Vector2i(10, 3), Vector2i(10, 5), Vector2i(11, 3), Vector2i(11, 5)],
 	},
 ]
 
@@ -128,7 +216,10 @@ var _selected_target = null
 var _hovered_target = null
 var _move_tiles: Array = []
 var _path_tiles: Array = []
+var _path_preview: MovementPathPreview = null
 var _attack_range_tiles: Array = []
+var _terrain_visuals: Array = []
+var _push_preview_tiles: Array = []
 var _sprite_sheet: Texture2D = null
 var _animated_sheets: Dictionary = {}
 var _combat_log: RichTextLabel = null
@@ -139,6 +230,7 @@ var _sponsor: Dictionary = {}
 var _marked_unit = null
 var _style_score: int = 0
 var _selected_layout: Dictionary = {}
+var _tiles: Dictionary = {}
 var _is_animating: bool = false
 var _combat_log_history: Array[String] = []
 var _unit_name_label: Label = null
@@ -184,6 +276,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_arena_base_position = _arena.position
+	_build_tile_metadata()
 	_draw_arena_floor()
 	_draw_obstacles()
 	_place_units()
@@ -196,7 +289,7 @@ func _ready() -> void:
 	_btn_pass.pressed.connect(_on_pass)
 	_btn_return_base.pressed.connect(_on_return_to_base)
 	_update_objective_label()
-	_start_turn()
+	await _start_turn()
 
 
 func _load_animated_sheets() -> void:
@@ -220,27 +313,191 @@ func _layout_positions(key: String) -> Array:
 	return _selected_layout.get(key, [])
 
 
+func _grid_center_coord() -> Vector2:
+	return Vector2(float(GRID_COLS - 1) * 0.5, float(GRID_ROWS - 1) * 0.5)
+
+
+func _is_valid_arena_tile(pos: Vector2i) -> bool:
+	if pos.x < 0 or pos.x >= GRID_COLS or pos.y < 0 or pos.y >= GRID_ROWS:
+		return false
+	var center := _grid_center_coord()
+	var nx := (float(pos.x) - center.x) / GRID_ELLIPSE_RADIUS.x
+	var ny := (float(pos.y) - center.y) / GRID_ELLIPSE_RADIUS.y
+	return nx * nx + ny * ny <= 1.0
+
+
+func _valid_arena_tiles() -> Array:
+	var out: Array = []
+	for y in range(GRID_ROWS):
+		for x in range(GRID_COLS):
+			var pos := Vector2i(x, y)
+			if _is_valid_arena_tile(pos):
+				out.append(pos)
+	return out
+
+
+func _plasma_vent_entries() -> Array:
+	return _selected_layout.get("plasma_vents", [])
+
+
+func _plasma_vent_positions() -> Array:
+	var out: Array = []
+	for vent in _plasma_vent_entries():
+		if vent is Dictionary:
+			out.append(vent.get("pos", Vector2i(-1, -1)))
+		elif vent is Vector2i:
+			out.append(vent)
+	return out
+
+
+func _vent_phase_for(pos: Vector2i) -> int:
+	for vent in _plasma_vent_entries():
+		if vent is Dictionary and vent.get("pos", Vector2i(-1, -1)) == pos:
+			return int(vent.get("phase", 0))
+	return 0
+
+
+func _hazard_state_for_round(pos: Vector2i) -> String:
+	var phase := _vent_phase_for(pos)
+	var index := posmod((_round - 1) + phase, HAZARD_STATES.size())
+	return String(HAZARD_STATES[index])
+
+
+func _make_tile_data(pos: Vector2i) -> Dictionary:
+	var valid := _is_valid_arena_tile(pos)
+	return {
+		"grid_coord": pos,
+		"world_position": _iso_to_screen_center(pos, _arena.size),
+		"walkable": valid,
+		"blocked": false,
+		"occupied_unit_id": "",
+		"terrain_type": TERRAIN_NORMAL,
+		"elevation_level": 0,
+		"movement_cost": 1,
+		"cover_type": COVER_NONE,
+		"hazard_type": HAZARD_NONE,
+		"hazard_state": HAZARD_IDLE,
+		"valid": valid,
+	}
+
+
+func _build_tile_metadata() -> void:
+	_tiles.clear()
+	for y in range(GRID_ROWS):
+		for x in range(GRID_COLS):
+			var pos := Vector2i(x, y)
+			_tiles[pos] = _make_tile_data(pos)
+
+	for pos: Vector2i in _layout_positions("rough"):
+		if _tiles.has(pos):
+			_tiles[pos]["terrain_type"] = TERRAIN_ROUGH
+			_tiles[pos]["movement_cost"] = 2
+	for pos: Vector2i in _layout_positions("raised"):
+		if _tiles.has(pos):
+			_tiles[pos]["terrain_type"] = TERRAIN_RAISED
+			_tiles[pos]["elevation_level"] = 1
+	for pos: Vector2i in _layout_positions("high"):
+		if _tiles.has(pos):
+			_tiles[pos]["terrain_type"] = TERRAIN_HIGH
+			_tiles[pos]["elevation_level"] = 2
+	for pos: Vector2i in _plasma_vent_positions():
+		if _tiles.has(pos):
+			_tiles[pos]["terrain_type"] = TERRAIN_HAZARD
+			_tiles[pos]["hazard_type"] = HAZARD_PLASMA_VENT
+			_tiles[pos]["hazard_state"] = _hazard_state_for_round(pos)
+	for pos: Vector2i in _layout_positions("blockers"):
+		if _tiles.has(pos):
+			_tiles[pos]["terrain_type"] = TERRAIN_BLOCKED
+			_tiles[pos]["blocked"] = true
+			_tiles[pos]["walkable"] = false
+			_tiles[pos]["movement_cost"] = 999
+			_tiles[pos]["cover_type"] = "hard"
+	_refresh_tile_occupancy()
+
+
+func _refresh_tile_occupancy() -> void:
+	for pos: Vector2i in _tiles.keys():
+		_tiles[pos]["occupied_unit_id"] = ""
+	for unit: Dictionary in _units:
+		if int(unit.get("hp_current", 0)) <= 0:
+			continue
+		var pos: Vector2i = unit.get("grid_pos", Vector2i(-1, -1))
+		if _tiles.has(pos):
+			_tiles[pos]["occupied_unit_id"] = String(unit.get("unit_id", unit.get("name", "")))
+
+
+func _tile_data(pos: Vector2i) -> Dictionary:
+	return _tiles.get(pos, {})
+
+
+func _tile_terrain(pos: Vector2i) -> String:
+	return String(_tile_data(pos).get("terrain_type", TERRAIN_BLOCKED))
+
+
+func _tile_elevation(pos: Vector2i) -> int:
+	return int(_tile_data(pos).get("elevation_level", 0))
+
+
+func _tile_movement_cost(pos: Vector2i) -> int:
+	return int(_tile_data(pos).get("movement_cost", 1))
+
+
+func _tile_hazard_state(pos: Vector2i) -> String:
+	return String(_tile_data(pos).get("hazard_state", HAZARD_IDLE))
+
+
 func _is_blocker(pos: Vector2i) -> bool:
+	if _tiles.has(pos):
+		return bool(_tiles[pos].get("blocked", false))
 	return _layout_positions("blockers").has(pos)
 
 
 func _is_hazard(pos: Vector2i) -> bool:
-	return _layout_positions("hazards").has(pos)
+	if _tiles.has(pos):
+		return String(_tiles[pos].get("hazard_type", HAZARD_NONE)) != HAZARD_NONE
+	return _plasma_vent_positions().has(pos)
 
 
 func _is_walkable(pos: Vector2i, ignored_unit = null) -> bool:
-	return _is_in_grid(pos) and not _is_blocker(pos) and not _is_tile_occupied(pos, ignored_unit)
+	if not _is_valid_arena_tile(pos):
+		return false
+	if _tiles.has(pos) and not bool(_tiles[pos].get("walkable", false)):
+		return false
+	return not _is_tile_occupied(pos, ignored_unit)
 
 
 func _draw_obstacles() -> void:
-	# Draw the prop sprite when available; only fall back to the bare diamond tile
-	# if the sprite is missing, so prop cells don't show a stray diamond underneath.
-	for pos: Vector2i in _layout_positions("hazards"):
-		if not _draw_hazard_prop(pos):
-			_draw_terrain_tile(pos, COLOR_HAZARD, COLOR_HAZARD_BORDER, BattleIsoTile.VARIANT_HAZARD)
+	_clear_terrain_visuals()
+	for pos: Vector2i in _layout_positions("rough"):
+		_draw_terrain_tile(pos, COLOR_ROUGH, Color(0.70, 0.78, 0.86, 0.22), BattleIsoTile.VARIANT_ROUGH)
+	for pos: Vector2i in _layout_positions("raised"):
+		_draw_terrain_tile(pos, COLOR_ELEVATION, Color(0.0, 1.0, 0.8, 0.26), BattleIsoTile.VARIANT_RAISED)
+	for pos: Vector2i in _layout_positions("high"):
+		_draw_terrain_tile(pos, COLOR_HIGH_GROUND, Color(1.0, 0.86, 0.32, 0.38), BattleIsoTile.VARIANT_HIGH)
+	for pos: Vector2i in _plasma_vent_positions():
+		_draw_hazard_tile(pos)
 	for pos: Vector2i in _layout_positions("blockers"):
 		if not _draw_terrain_prop(pos, PROP_BLOCKER_PATH):
 			_draw_terrain_tile(pos, COLOR_OBSTACLE, COLOR_OBSTACLE_BORDER, BattleIsoTile.VARIANT_BLOCKER)
+
+
+func _clear_terrain_visuals() -> void:
+	for visual: Control in _terrain_visuals:
+		if is_instance_valid(visual):
+			visual.queue_free()
+	_terrain_visuals.clear()
+
+
+func _draw_hazard_tile(pos: Vector2i) -> void:
+	var state := _tile_hazard_state(pos)
+	match state:
+		HAZARD_WARNING:
+			_draw_terrain_tile(pos, COLOR_HAZARD_WARNING, COLOR_HAZARD_BORDER, BattleIsoTile.VARIANT_HAZARD_WARNING)
+		HAZARD_ACTIVE:
+			_draw_terrain_tile(pos, COLOR_HAZARD_ACTIVE, Color(1.0, 0.22, 0.08, 0.95), BattleIsoTile.VARIANT_HAZARD_ACTIVE)
+			_draw_hazard_prop(pos)
+		_:
+			_draw_terrain_tile(pos, Color(1.0, 0.133, 0.267, 0.08), Color(1.0, 0.667, 0.0, 0.30), BattleIsoTile.VARIANT_HAZARD)
 
 
 func _draw_hazard_prop(pos: Vector2i) -> bool:
@@ -248,9 +505,9 @@ func _draw_hazard_prop(pos: Vector2i) -> bool:
 	if ResourceLoader.exists(PROP_HAZARD_ANIM_PATH):
 		var sheet := load(PROP_HAZARD_ANIM_PATH) as Texture2D
 		if sheet != null:
-			var anim = BattleAnimatedPropScene.new()
+			var anim := BattleAnimatedPropScene.new() as Control
 			_place_prop(anim, pos)
-			anim.setup(sheet, PROP_HAZARD_ANIM_FRAMES, PROP_HAZARD_ANIM_FRAME_DURATION)
+			anim.call("setup", sheet, PROP_HAZARD_ANIM_FRAMES, PROP_HAZARD_ANIM_FRAME_DURATION)
 			return true
 	return _draw_terrain_prop(pos, PROP_HAZARD_PATH)
 
@@ -282,19 +539,21 @@ func _place_prop(prop: Control, pos: Vector2i) -> void:
 	# Depth-sort props alongside units so a unit in front/behind layers correctly.
 	prop.z_index = 5 + (pos.x + pos.y) * 10 + pos.x
 	_arena.add_child(prop)
+	_terrain_visuals.append(prop)
 
 
 func _draw_terrain_tile(pos: Vector2i, fill_color: Color, border_color: Color, variant := BattleIsoTile.VARIANT_MOVE) -> void:
 	var tile := _create_iso_tile_visual(pos, fill_color, border_color, MOVE_TILE_SIZE, variant)
 	tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_arena.add_child(tile)
+	_terrain_visuals.append(tile)
 
 
 func _create_iso_tile_visual(pos: Vector2i, fill_color: Color, border_color: Color, tile_size := MOVE_TILE_SIZE, variant := BattleIsoTile.VARIANT_MOVE) -> BattleIsoTile:
 	var tile := BattleIsoTileScene.new() as BattleIsoTile
 	tile.size = tile_size
 	tile.custom_minimum_size = tile_size
-	tile.position = _iso_to_screen(pos) + (UNIT_SIZE - tile_size) * 0.5
+	tile.position = _iso_to_screen_center(pos, _arena.size) - tile_size * 0.5
 	tile.z_index = 2
 	tile.setup(fill_color, border_color, 2.0, variant)
 	return tile
@@ -328,7 +587,7 @@ func _draw_arena_floor() -> void:
 		arena_floor.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		arena_floor.z_index = 1
 		_arena.add_child(arena_floor)
-	arena_floor.call("setup", GRID_COLS, GRID_ROWS, MOVE_TILE_SIZE, UNIT_SIZE, BOARD_CENTER_RATIO, BOARD_SIZE_RATIO)
+	arena_floor.call("setup", GRID_COLS, GRID_ROWS, MOVE_TILE_SIZE, UNIT_SIZE, BOARD_CENTER_RATIO, BOARD_SIZE_RATIO, _valid_arena_tiles())
 
 	if not _arena.has_node("ArenaScanlines"):
 		var scanlines := ColorRect.new()
@@ -731,14 +990,16 @@ func _damage_die(attacker: Dictionary) -> int:
 func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: String) -> bool:
 	var advantage: bool = _is_flanked(attacker, target) or (target == _marked_unit)
 	var nat := _roll_d20(advantage)
-	var total := nat + _attack_bonus(attacker)
+	var elevation_mod := _elevation_attack_modifier(attacker, target)
+	var total := nat + _attack_bonus(attacker) + elevation_mod
 	var dc := int(target.get("defense_class", 10))
 	var target_color := "[color=#00ffcc]" if target["team"] == "player" else "[color=#ff2244]"
 	var adv_tag := "  [color=#ffaa00][ADV][/color]" if advantage else ""
+	var elevation_tag := _elevation_attack_tag(attacker, target)
 
 	if total < dc:
-		_log("%s%s[/color] missed %s%s[/color]  [color=#888888](%d vs DC %d)[/color]%s" % [
-			attacker_color, attacker["name"], target_color, target["name"], total, dc, adv_tag
+		_log("%s%s[/color] missed %s%s[/color]  [color=#888888](%d vs DC %d)[/color]%s%s" % [
+			attacker_color, attacker["name"], target_color, target["name"], total, dc, adv_tag, elevation_tag
 		])
 		await _play_attack_feedback(attacker, target, false, 0, false)
 		return false
@@ -755,7 +1016,7 @@ func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: S
 	var crit_tag := "  [color=#ff2244][CRIT!][/color]" if is_crit else ""
 	_log("%s%s[/color] hit %s%s[/color] for [color=#ffaa00]%d[/color] dmg  [color=#888888](%d vs DC %d)[/color]%s%s" % [
 		attacker_color, attacker["name"], target_color, target["name"],
-		dmg, total, dc, adv_tag, crit_tag
+		dmg, total, dc, adv_tag + elevation_tag, crit_tag
 	])
 	await _play_attack_feedback(attacker, target, true, dmg, is_crit)
 	return await _apply_damage(target, dmg, false)
@@ -764,17 +1025,25 @@ func _resolve_attack(attacker: Dictionary, target: Dictionary, attacker_color: S
 func _spawn_position(key: String, index: int, fallback: Vector2i) -> Vector2i:
 	var spawns := _layout_positions(key)
 	if index >= 0 and index < spawns.size():
-		return spawns[index]
-	return fallback
+		var candidate: Vector2i = spawns[index]
+		if _is_valid_arena_tile(candidate) and not _layout_positions("blockers").has(candidate):
+			return candidate
+	if _is_valid_arena_tile(fallback) and not _layout_positions("blockers").has(fallback):
+		return fallback
+	for pos: Vector2i in _valid_arena_tiles():
+		if not _layout_positions("blockers").has(pos):
+			return pos
+	return Vector2i(GRID_COLS / 2, GRID_ROWS / 2)
 
 
 func _build_units() -> void:
 	for i in range(GameState.roster.size()):
 		var g: Dictionary = GameState.roster[i].duplicate()
 		g["team"] = "player"
+		g["unit_id"] = "P%d" % i
 		g["is_mark"] = false
 		g["roster_index"] = i
-		g["grid_pos"] = _spawn_position("player_spawns", i, Vector2i(i % 2, floori(i / 2.0)))
+		g["grid_pos"] = _spawn_position("player_spawns", i, Vector2i(1 + (i % 2), 3 + floori(i / 2.0)))
 		# Apply injury stat penalties before deriving mods.
 		var hp_pct_pen: float = 0.0
 		for inj in g.get("injuries", []):
@@ -827,8 +1096,9 @@ func _build_units() -> void:
 			"intelligence": randi_range(8, 18),
 			"charisma": randi_range(8, 18),
 			"team": "enemy",
+			"unit_id": "E%d" % i,
 			"is_mark": mark_name != "" and name_pool[i] == mark_name,
-			"grid_pos": _spawn_position("enemy_spawns", i, Vector2i(GRID_COLS - 1 - (i % 2), floori(i / 2.0))),
+			"grid_pos": _spawn_position("enemy_spawns", i, Vector2i(GRID_COLS - 2 - (i % 2), 3 + floori(i / 2.0))),
 			"hp_max": 0,
 			"hp_current": 0,
 			"defense_class": 0,
@@ -873,7 +1143,11 @@ func _reset_turn_state(unit: Dictionary) -> void:
 
 func _iso_to_screen(grid_pos: Vector2i) -> Vector2:
 	var arena_size: Vector2 = _arena.size
-	return _iso_to_screen_center(grid_pos, arena_size) - UNIT_SIZE * 0.5
+	return _iso_to_screen_center(grid_pos, arena_size) - _unit_ground_anchor()
+
+
+func _unit_ground_anchor() -> Vector2:
+	return Vector2(UNIT_SIZE.x * 0.5, UNIT_SIZE.y - RING_SIZE.y * 0.20)
 
 
 func _iso_to_screen_center(grid_pos: Vector2i, arena_size: Vector2) -> Vector2:
@@ -929,7 +1203,36 @@ func _is_in_attack_range(attacker: Dictionary, target: Dictionary) -> bool:
 		return false
 	var attacker_pos: Vector2i = attacker.get("grid_pos", Vector2i(-1, -1))
 	var target_pos: Vector2i = target.get("grid_pos", Vector2i(-1, -1))
-	return _grid_distance(attacker_pos, target_pos) <= int(attacker.get("attack_range", DEFAULT_ATTACK_RANGE))
+	return _is_in_attack_range_at_pos(attacker, target_pos)
+
+
+func _is_in_attack_range_at_pos(attacker: Dictionary, target_pos: Vector2i) -> bool:
+	if attacker.is_empty() or not _is_valid_arena_tile(target_pos):
+		return false
+	var attacker_pos: Vector2i = attacker.get("grid_pos", Vector2i(-1, -1))
+	var range := int(attacker.get("attack_range", DEFAULT_ATTACK_RANGE))
+	if _tile_elevation(attacker_pos) > _tile_elevation(target_pos):
+		range += ELEVATION_RANGE_BONUS
+	return _grid_distance(attacker_pos, target_pos) <= range
+
+
+func _elevation_attack_modifier(attacker: Dictionary, target: Dictionary) -> int:
+	var attacker_elevation := _tile_elevation(attacker.get("grid_pos", Vector2i(-1, -1)))
+	var target_elevation := _tile_elevation(target.get("grid_pos", Vector2i(-1, -1)))
+	if attacker_elevation > target_elevation:
+		return ELEVATION_ATTACK_BONUS
+	if attacker_elevation < target_elevation:
+		return -ELEVATION_ATTACK_BONUS
+	return 0
+
+
+func _elevation_attack_tag(attacker: Dictionary, target: Dictionary) -> String:
+	var modifier := _elevation_attack_modifier(attacker, target)
+	if modifier > 0:
+		return "  [color=#00ffcc][HIGH +%d][/color]" % modifier
+	if modifier < 0:
+		return "  [color=#ffaa00][LOW %d][/color]" % modifier
+	return ""
 
 
 func _get_reachable_tiles(unit: Dictionary) -> Array:
@@ -941,19 +1244,27 @@ func _get_reachable_tiles(unit: Dictionary) -> Array:
 	var move_range: int = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
 	var frontier: Array = [origin]
 	var distances: Dictionary = {origin: 0}
-	var cursor := 0
-	while cursor < frontier.size():
-		var current: Vector2i = frontier[cursor]
-		cursor += 1
+	while not frontier.is_empty():
+		frontier.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+			return int(distances[a]) < int(distances[b])
+		)
+		var current: Vector2i = frontier.pop_front()
 		var current_distance: int = distances[current]
 		if current_distance >= move_range:
 			continue
 		for next: Vector2i in _grid_neighbors(current):
-			if distances.has(next) or not _is_walkable(next, unit):
+			if not _is_walkable(next, unit):
 				continue
-			distances[next] = current_distance + 1
-			frontier.append(next)
-			result.append(next)
+			var next_distance := current_distance + _tile_movement_cost(next)
+			if next_distance > move_range:
+				continue
+			if distances.has(next) and int(distances[next]) <= next_distance:
+				continue
+			distances[next] = next_distance
+			if not frontier.has(next):
+				frontier.append(next)
+			if not result.has(next):
+				result.append(next)
 	return result
 
 
@@ -977,10 +1288,7 @@ func _set_unit_ring_position(unit: Dictionary) -> void:
 	if unit.get("ring_node", null) == null:
 		return
 	var ring := unit["ring_node"] as Control
-	ring.position = _iso_to_screen(unit["grid_pos"]) + Vector2(
-		(UNIT_SIZE.x - RING_SIZE.x) * 0.5,
-		UNIT_SIZE.y - RING_SIZE.y * 0.72
-	)
+	ring.position = _iso_to_screen(unit["grid_pos"]) + _unit_ground_anchor() - RING_SIZE * 0.5
 
 
 func _update_unit_z_order(unit: Dictionary) -> void:
@@ -1007,17 +1315,24 @@ func _find_path(unit: Dictionary, destination: Vector2i) -> Array:
 
 	var frontier: Array = [origin]
 	var parents: Dictionary = {origin: Vector2i(-999, -999)}
-	var cursor := 0
-	while cursor < frontier.size():
-		var current: Vector2i = frontier[cursor]
-		cursor += 1
+	var distances: Dictionary = {origin: 0}
+	while not frontier.is_empty():
+		frontier.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
+			return int(distances[a]) < int(distances[b])
+		)
+		var current: Vector2i = frontier.pop_front()
 		if current == destination:
 			break
 		for next: Vector2i in _grid_neighbors(current):
-			if parents.has(next) or not _is_walkable(next, unit):
+			if not _is_walkable(next, unit):
 				continue
+			var next_distance := int(distances[current]) + _tile_movement_cost(next)
+			if distances.has(next) and int(distances[next]) <= next_distance:
+				continue
+			distances[next] = next_distance
 			parents[next] = current
-			frontier.append(next)
+			if not frontier.has(next):
+				frontier.append(next)
 
 	if not parents.has(destination):
 		return []
@@ -1051,12 +1366,14 @@ func _move_unit_to(unit: Dictionary, grid_pos: Vector2i, animate := true) -> voi
 	var visual := unit.get("visual_root", null) as BattleUnitVisual
 	if visual == null and unit.get("rect_node", null) == null:
 		unit["grid_pos"] = grid_pos
+		_refresh_tile_occupancy()
 		return
 
 	var path := _find_path(unit, grid_pos)
 	if path.is_empty():
 		unit["grid_pos"] = grid_pos
 		_set_unit_screen_position(unit)
+		_refresh_tile_occupancy()
 		return
 
 	var mover := unit["rect_node"] as Control
@@ -1066,18 +1383,20 @@ func _move_unit_to(unit: Dictionary, grid_pos: Vector2i, animate := true) -> voi
 	if not animate:
 		unit["grid_pos"] = grid_pos
 		_set_unit_screen_position(unit)
+		_refresh_tile_occupancy()
 		return
 
 	_set_animating(true)
 	for step: Vector2i in path:
 		var previous_pos: Vector2i = unit["grid_pos"]
 		unit["grid_pos"] = step
+		_refresh_tile_occupancy()
 		_update_unit_z_order(unit)
 		if visual != null:
 			visual.set_facing(step - previous_pos)
 			visual.play("walk")
 		var target_pos := _iso_to_screen(step)
-		var ring_pos := target_pos + Vector2((UNIT_SIZE.x - RING_SIZE.x) * 0.5, UNIT_SIZE.y - RING_SIZE.y * 0.72)
+		var ring_pos := target_pos + _unit_ground_anchor() - RING_SIZE * 0.5
 		var tween := create_tween()
 		tween.tween_property(mover, "position", target_pos, MOVE_STEP_DURATION).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		if ring and visual == null:
@@ -1134,7 +1453,7 @@ func _show_move_tiles(unit: Dictionary) -> void:
 		return
 
 	for grid_pos: Vector2i in _get_reachable_tiles(unit):
-		var tile := _create_iso_tile_visual(grid_pos, COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_MOVE)
+		var tile := _create_iso_tile_visual(grid_pos, COLOR_MOVE_HIT_TILE, COLOR_MOVE_HIT_BORDER, MOVE_TILE_SIZE, BattleIsoTile.VARIANT_MOVE)
 		tile.mouse_filter = Control.MOUSE_FILTER_STOP
 		tile.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		tile.z_index = 4
@@ -1147,6 +1466,7 @@ func _show_move_tiles(unit: Dictionary) -> void:
 
 func _clear_move_tiles() -> void:
 	_clear_path_tiles()
+	_clear_push_preview_tiles()
 	for tile: Control in _move_tiles:
 		if is_instance_valid(tile):
 			tile.queue_free()
@@ -1156,12 +1476,22 @@ func _clear_move_tiles() -> void:
 func _show_path_tiles(unit: Dictionary, destination: Vector2i) -> void:
 	_clear_path_tiles()
 	var path := _find_path(unit, destination)
+	if path.is_empty():
+		return
+	var points: Array = [_movement_path_point(unit["grid_pos"])]
 	for grid_pos: Vector2i in path:
-		var tile := _create_iso_tile_visual(grid_pos, COLOR_PATH_TILE, Color(1.0, 0.86, 0.32, 0.78), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_PATH)
-		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.z_index = 5
-		_arena.add_child(tile)
-		_path_tiles.append(tile)
+		points.append(_movement_path_point(grid_pos))
+	_path_preview = MovementPathPreview.new()
+	_path_preview.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_path_preview.size = _arena.size
+	_path_preview.z_index = 18
+	_path_preview.setup(points, COLOR_MOVE_PATH_LINE, COLOR_MOVE_DESTINATION)
+	_arena.add_child(_path_preview)
+	_path_tiles.append(_path_preview)
+
+
+func _movement_path_point(grid_pos: Vector2i) -> Vector2:
+	return _iso_to_screen_center(grid_pos, _arena.size)
 
 
 func _clear_path_tiles() -> void:
@@ -1169,6 +1499,7 @@ func _clear_path_tiles() -> void:
 		if is_instance_valid(tile):
 			tile.queue_free()
 	_path_tiles.clear()
+	_path_preview = null
 
 
 func _show_attack_range_tiles(unit: Dictionary) -> void:
@@ -1180,7 +1511,7 @@ func _show_attack_range_tiles(unit: Dictionary) -> void:
 	for y in range(GRID_ROWS):
 		for x in range(GRID_COLS):
 			var grid_pos := Vector2i(x, y)
-			if grid_pos == unit["grid_pos"] or _grid_distance(unit["grid_pos"], grid_pos) > atk_range:
+			if grid_pos == unit["grid_pos"] or not _is_in_attack_range_at_pos(unit, grid_pos):
 				continue
 			var range_tile := _create_iso_tile_visual(grid_pos, COLOR_ATTACK_RANGE_TILE, Color(1.0, 0.133, 0.267, 0.18), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_ATTACK_RANGE)
 			range_tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1191,7 +1522,7 @@ func _show_attack_range_tiles(unit: Dictionary) -> void:
 	for u: Dictionary in _units:
 		if u["team"] != "enemy" or int(u.get("hp_current", 0)) <= 0:
 			continue
-		var valid := _grid_distance(unit["grid_pos"], u["grid_pos"]) <= atk_range
+		var valid := _is_in_attack_range(unit, u)
 		var fill := COLOR_VALID_TARGET_TILE if valid else COLOR_INVALID_TARGET_TILE
 		var border := Color(1.0, 0.133, 0.267, 0.82) if valid else Color(0.72, 0.58, 0.62, 0.36)
 		var variant := BattleIsoTile.VARIANT_VALID_TARGET if valid else BattleIsoTile.VARIANT_INVALID_TARGET
@@ -1228,6 +1559,9 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	_clear_move_tiles()
 	_clear_target_selection(false)
 	await _move_unit_to(unit, grid_pos)
+	var hazard_killed := await _trigger_active_hazard(unit, "entered active vent")
+	if hazard_killed and _check_battle_end():
+		return
 	_update_unit_info(unit)
 	_update_targeting_enabled()
 	_update_attack_button_state()
@@ -1239,12 +1573,12 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 
 
 func _on_move_tile_mouse_entered(tile: BattleIsoTile, grid_pos: Vector2i) -> void:
-	tile.setup(COLOR_MOVE_TILE_HOVER, Color(1.0, 1.0, 1.0, 0.7), 2.0, BattleIsoTile.VARIANT_MOVE)
+	tile.setup(Color(0.0, 1.0, 0.8, 0.12), Color(1.0, 1.0, 1.0, 0.42), 1.5, BattleIsoTile.VARIANT_MOVE)
 	_show_path_tiles(_get_active_unit(), grid_pos)
 
 
 func _on_move_tile_mouse_exited(tile: BattleIsoTile) -> void:
-	tile.setup(COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48), 2.0, BattleIsoTile.VARIANT_MOVE)
+	tile.setup(COLOR_MOVE_HIT_TILE, COLOR_MOVE_HIT_BORDER, 1.0, BattleIsoTile.VARIANT_MOVE)
 	_clear_path_tiles()
 
 
@@ -1471,6 +1805,11 @@ func _update_attack_button_state() -> void:
 
 
 func _get_adjacent_enemy(unit: Dictionary) -> Dictionary:
+	if _selected_target is Dictionary:
+		var selected: Dictionary = _selected_target
+		if selected.get("team", "") == "enemy" and int(selected.get("hp_current", 0)) > 0:
+			if _grid_distance(unit["grid_pos"], selected["grid_pos"]) == 1:
+				return selected
 	for u: Dictionary in _units:
 		if u["team"] == "enemy" and int(u.get("hp_current", 0)) > 0:
 			if _grid_distance(unit["grid_pos"], u["grid_pos"]) == 1:
@@ -1542,6 +1881,7 @@ func _on_bonus_pressed() -> void:
 
 	var actions := _available_bonus_actions(active)
 	_bonus_popup.clear()
+	_show_shove_preview(active)
 	for i in range(actions.size()):
 		var action_key: String = actions[i]
 		var label: String
@@ -1570,6 +1910,7 @@ func _on_bonus_pressed() -> void:
 func _on_bonus_popup_id_pressed(id: int) -> void:
 	if _is_animating:
 		return
+	_clear_push_preview_tiles()
 	var active := _get_active_unit()
 	if active.is_empty():
 		return
@@ -1687,7 +2028,7 @@ func _get_charge_target(unit: Dictionary) -> Dictionary:
 	var step := Vector2i(dx, 0) if dx != 0 else Vector2i(0, dy)
 	for dist in range(1, move_range + 2):
 		var check := pos + step * dist
-		if not _is_in_grid(check):
+		if not _is_valid_arena_tile(check):
 			break
 		if _is_blocker(check):
 			break
@@ -1719,7 +2060,7 @@ func _on_charge() -> void:
 	var land := pos
 	for dist in range(1, int(unit.get("move_range", DEFAULT_MOVE_RANGE)) + 1):
 		var next := pos + step * dist
-		if not _is_in_grid(next) or _is_blocker(next) or _is_tile_occupied(next, unit):
+		if not _is_valid_arena_tile(next) or _is_blocker(next) or _is_tile_occupied(next, unit):
 			break
 		land = next
 
@@ -1727,6 +2068,9 @@ func _on_charge() -> void:
 	unit["has_main_action"] = false
 	_clear_move_tiles()
 	await _move_unit_to(unit, land)
+	var hazard_killed := await _trigger_active_hazard(unit, "charged through active vent")
+	if hazard_killed and _check_battle_end():
+		return
 	_update_unit_info(unit)
 	_update_charge_button_state()
 	_update_attack_button_state()
@@ -1740,17 +2084,123 @@ func _apply_attack_direct(attacker: Dictionary, target: Dictionary) -> void:
 	var killed := await _resolve_attack(attacker, target, "[color=#ffaa00]")
 	if killed and _check_battle_end():
 		return
-	_advance_turn()
+	await _advance_turn()
 
 
 func _shove_impact_name(dest: Vector2i, target: Dictionary) -> String:
-	if not _is_in_grid(dest):
-		return "wall"
+	if not _is_valid_arena_tile(dest):
+		return "arena edge"
 	if _is_blocker(dest):
 		return "blocker"
 	if _is_tile_occupied(dest, target):
 		return "unit"
 	return "wall"
+
+
+func _shove_destination(unit: Dictionary, target: Dictionary) -> Dictionary:
+	var push_dir: Vector2i = target["grid_pos"] - unit["grid_pos"]
+	var dest: Vector2i = target["grid_pos"] + push_dir
+	var target_elevation := _tile_elevation(target["grid_pos"])
+	var dest_elevation := _tile_elevation(dest) if _is_valid_arena_tile(dest) else target_elevation
+	return {
+		"direction": push_dir,
+		"destination": dest,
+		"ring_out": not _is_valid_arena_tile(dest),
+		"walkable": _is_walkable(dest, target),
+		"impact_name": _shove_impact_name(dest, target),
+		"fall_damage": FALL_DAMAGE if dest_elevation < target_elevation else 0,
+		"hazard_active": _is_hazard(dest) and _tile_hazard_state(dest) == HAZARD_ACTIVE,
+		"hazard_warning": _is_hazard(dest) and _tile_hazard_state(dest) == HAZARD_WARNING,
+	}
+
+
+func _show_shove_preview(unit: Dictionary) -> void:
+	_clear_push_preview_tiles()
+	if unit.is_empty() or not bool(unit.get("has_bonus_action", true)):
+		return
+	var target := _get_adjacent_enemy(unit)
+	if target.is_empty():
+		return
+	var info := _shove_destination(unit, target)
+	var target_tile := _create_iso_tile_visual(target["grid_pos"], COLOR_PUSH_PREVIEW, Color(1.0, 0.86, 0.32, 0.88), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_PUSH)
+	target_tile.set_direction_hint(info["direction"])
+	target_tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	target_tile.z_index = 6
+	_arena.add_child(target_tile)
+	_push_preview_tiles.append(target_tile)
+
+	var dest: Vector2i = info["destination"]
+	var variant := BattleIsoTile.VARIANT_PUSH
+	var fill := Color(1.0, 0.667, 0.0, 0.20)
+	var border := Color(1.0, 0.86, 0.32, 0.64)
+	if bool(info["ring_out"]):
+		variant = BattleIsoTile.VARIANT_RING_OUT
+		fill = COLOR_RING_OUT
+		border = Color(1.0, 0.08, 0.08, 0.92)
+	elif not bool(info["walkable"]):
+		variant = BattleIsoTile.VARIANT_INVALID_TARGET
+		fill = COLOR_INVALID_TARGET_TILE
+		border = Color(1.0, 0.08, 0.08, 0.66)
+	elif bool(info["hazard_active"]):
+		variant = BattleIsoTile.VARIANT_HAZARD_ACTIVE
+		fill = COLOR_HAZARD_ACTIVE
+		border = Color(1.0, 0.22, 0.08, 0.95)
+	elif bool(info["hazard_warning"]):
+		variant = BattleIsoTile.VARIANT_HAZARD_WARNING
+		fill = COLOR_HAZARD_WARNING
+		border = COLOR_HAZARD_BORDER
+	var dest_tile := _create_iso_tile_visual(dest, fill, border, MOVE_TILE_SIZE, variant)
+	dest_tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dest_tile.z_index = 6
+	_arena.add_child(dest_tile)
+	_push_preview_tiles.append(dest_tile)
+
+
+func _clear_push_preview_tiles() -> void:
+	for tile: Control in _push_preview_tiles:
+		if is_instance_valid(tile):
+			tile.queue_free()
+	_push_preview_tiles.clear()
+
+
+func _apply_fall_damage(target: Dictionary, amount: int) -> bool:
+	if amount <= 0 or int(target.get("hp_current", 0)) <= 0:
+		return false
+	_log("[color=#ffaa00]%s[/color] crashed down from high ground - [color=#ffaa00]%d[/color] fall dmg!" % [
+		target["name"], amount
+	])
+	return await _apply_damage(target, amount)
+
+
+func _trigger_active_hazard(unit: Dictionary, reason: String) -> bool:
+	if unit.is_empty() or int(unit.get("hp_current", 0)) <= 0:
+		return false
+	var pos: Vector2i = unit.get("grid_pos", Vector2i(-1, -1))
+	if not (_is_hazard(pos) and _tile_hazard_state(pos) == HAZARD_ACTIVE):
+		return false
+	_log("[color=#ff2244]PLASMA VENT[/color] scorched [color=#ffaa00]%s[/color] (%s) - [color=#ffaa00]%d[/color] dmg!" % [
+		unit["name"], reason, PLASMA_VENT_DAMAGE
+	])
+	return await _apply_damage(unit, PLASMA_VENT_DAMAGE)
+
+
+func _advance_plasma_vents_for_round() -> void:
+	if _tiles.is_empty():
+		return
+	var active_count := 0
+	var warning_count := 0
+	for pos: Vector2i in _plasma_vent_positions():
+		if not _tiles.has(pos):
+			continue
+		var state := _hazard_state_for_round(pos)
+		_tiles[pos]["hazard_state"] = state
+		if state == HAZARD_ACTIVE:
+			active_count += 1
+		elif state == HAZARD_WARNING:
+			warning_count += 1
+	_draw_obstacles()
+	if active_count > 0 or warning_count > 0:
+		_log("[color=#ffaa00]VENT CYCLE[/color] %d active / %d warning" % [active_count, warning_count])
 
 
 func _on_shove() -> void:
@@ -1766,27 +2216,42 @@ func _on_shove() -> void:
 		return
 
 	unit["has_bonus_action"] = false
+	_clear_push_preview_tiles()
 
-	var push_dir: Vector2i = target["grid_pos"] - unit["grid_pos"]
-	var dest: Vector2i = target["grid_pos"] + push_dir
+	var info := _shove_destination(unit, target)
+	var dest: Vector2i = info["destination"]
 
-	if _is_walkable(dest, target):
+	if bool(info["ring_out"]) and LETHAL_EDGES_ENABLED:
+		_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] out of the arena!" % [
+			unit["name"], target["name"]
+		])
+		_show_floating_text("RING OUT", _unit_float_position(target), Color(1.0, 0.08, 0.08, 1.0), true)
+		var ring_killed := await _apply_damage(target, RING_OUT_DAMAGE)
+		if ring_killed and _check_battle_end():
+			return
+	elif bool(info["walkable"]):
 		await _move_unit_to(target, dest)
+		_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] back!" % [unit["name"], target["name"]])
+		if int(info["fall_damage"]) > 0:
+			var fall_killed := await _apply_fall_damage(target, int(info["fall_damage"]))
+			if fall_killed and _check_battle_end():
+				return
 		if _is_hazard(dest):
-			_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] into arena hazard - [color=#ffaa00]%d[/color] dmg!" % [
-				unit["name"], target["name"], SHOVE_IMPACT_DAMAGE
-			])
+			if _tile_hazard_state(dest) == HAZARD_ACTIVE:
+				_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] into an active plasma vent!" % [
+					unit["name"], target["name"]
+				])
+				var hazard_killed := await _trigger_active_hazard(target, "forced onto active vent")
+				if hazard_killed and _check_battle_end():
+					return
+			elif _tile_hazard_state(dest) == HAZARD_WARNING:
+				_log("[color=#ffaa00]%s[/color] was shoved onto a vent warning tile" % target["name"])
 			if str(target.get("team", "")) == "enemy":
 				_style_score += 1
-				_log("[color=#ffaa00]HAZARD POP - STYLE +1[/color]")
+				_log("[color=#ffaa00]ARENA CONTROL - STYLE +1[/color]")
 				_update_objective_label()
-			var hazard_killed := await _apply_damage(target, SHOVE_IMPACT_DAMAGE)
-			if hazard_killed and _check_battle_end():
-				return
-		else:
-			_log("[color=#00ffcc]%s[/color] shoved [color=#ff2244]%s[/color] back!" % [unit["name"], target["name"]])
 	else:
-		var impact_name := _shove_impact_name(dest, target)
+		var impact_name: String = info["impact_name"]
 		_log("[color=#00ffcc]%s[/color] slammed [color=#ff2244]%s[/color] into %s - [color=#ffaa00]%d[/color] dmg!" % [
 			unit["name"], target["name"], impact_name, SHOVE_IMPACT_DAMAGE
 		])
@@ -1829,6 +2294,7 @@ func _on_shield_bash() -> void:
 func _clear_target_selection(update_button := true) -> void:
 	_selected_target = null
 	_hovered_target = null
+	_clear_push_preview_tiles()
 	if update_button:
 		_update_attack_button_state()
 		if not _initiative.is_empty():
@@ -1842,6 +2308,8 @@ func _on_unit_gui_input(event: InputEvent, unit: Dictionary) -> void:
 		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_selected_target = unit
+		if _grid_distance(_get_active_unit().get("grid_pos", Vector2i(-1, -1)), unit.get("grid_pos", Vector2i(-1, -1))) == 1:
+			_show_shove_preview(_get_active_unit())
 		_update_attack_button_state()
 		_highlight_active(_initiative[_turn_index])
 		accept_event()
@@ -1871,7 +2339,7 @@ func _enemy_act(unit: Dictionary) -> void:
 		if u["team"] == "player" and int(u["hp_current"]) > 0:
 			targets.append(u)
 	if targets.is_empty():
-		_advance_turn()
+		await _advance_turn()
 		return
 
 	var target: Dictionary = _find_nearest(unit, targets)
@@ -1881,12 +2349,15 @@ func _enemy_act(unit: Dictionary) -> void:
 			unit["has_moved"] = true
 			_log("[color=#ff2244]%s[/color] advanced" % unit["name"])
 			await _move_unit_to(unit, destination)
+			var hazard_killed := await _trigger_active_hazard(unit, "entered active vent")
+			if hazard_killed and _check_battle_end():
+				return
 
 	if _is_in_attack_range(unit, target):
 		unit["has_main_action"] = false
 		await _apply_attack(unit, target)
 	else:
-		_advance_turn()
+		await _advance_turn()
 
 
 func _on_attack() -> void:
@@ -1912,7 +2383,7 @@ func _on_attack() -> void:
 func _on_pass() -> void:
 	if _is_animating or _battle_over:
 		return
-	_advance_turn()
+	await _advance_turn()
 
 
 func _find_nearest(attacker: Dictionary, candidates: Array) -> Dictionary:
@@ -1990,7 +2461,7 @@ func _apply_attack(attacker: Dictionary, target: Dictionary) -> void:
 	var killed := await _resolve_attack(attacker, target, attacker_color)
 	if killed and _check_battle_end():
 		return
-	_advance_turn()
+	await _advance_turn()
 
 
 func _flash_hit(unit: Dictionary) -> void:
@@ -2141,6 +2612,7 @@ func _remove_dead(unit: Dictionary) -> void:
 		_marked_unit = null
 	_units.erase(unit)
 	_initiative.erase(unit)
+	_refresh_tile_occupancy()
 	if _turn_index >= _initiative.size():
 		_turn_index = 0
 
@@ -2150,10 +2622,28 @@ func _advance_turn() -> void:
 		return
 	_clear_target_selection(false)
 	_clear_move_tiles()
-	_turn_index = (_turn_index + 1) % _initiative.size()
-	if _turn_index == 0:
-		_round += 1
-	_start_turn()
+	var was_last_unit := _turn_index >= _initiative.size() - 1
+	var ending_unit: Dictionary = _initiative[_turn_index]
+	var hazard_killed := await _trigger_active_hazard(ending_unit, "ended turn on active vent")
+	if hazard_killed:
+		if _check_battle_end():
+			return
+		if _initiative.is_empty():
+			return
+		if was_last_unit:
+			_turn_index = 0
+			_round += 1
+			_advance_plasma_vents_for_round()
+	else:
+		_turn_index = (_turn_index + 1) % _initiative.size()
+		if _turn_index == 0:
+			_round += 1
+			_advance_plasma_vents_for_round()
+	if _initiative.is_empty():
+		return
+	if _turn_index >= _initiative.size():
+		_turn_index = 0
+	await _start_turn()
 
 
 func _check_battle_end() -> bool:
