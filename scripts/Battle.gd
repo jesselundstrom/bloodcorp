@@ -5,6 +5,7 @@ const BattleArenaFloorScene := preload("res://scripts/BattleArenaFloor.gd")
 const BattleIsoTileScene := preload("res://scripts/BattleIsoTile.gd")
 const BattleUnitVisualScene := preload("res://scripts/BattleUnitVisual.gd")
 const BattleCombatEffectScene := preload("res://scripts/BattleCombatEffect.gd")
+const BattleAnimatedPropScene := preload("res://scripts/BattleAnimatedProp.gd")
 
 
 const ENEMY_NAMES := [
@@ -25,6 +26,12 @@ const DEFAULT_ATTACK_RANGE := 1
 const MOVE_STEP_DURATION := 0.16
 const ATTACK_LUNGE_DURATION := 0.11
 const ARENA_BG_PATH := "res://assets/sprites/arena/broadcast_arena_bg.png"
+const PROP_BLOCKER_PATH := "res://assets/sprites/arena/prop_blocker.png"
+const PROP_HAZARD_PATH := "res://assets/sprites/arena/prop_hazard.png"
+const PROP_HAZARD_ANIM_PATH := "res://assets/sprites/arena/prop_hazard_anim.png"
+const PROP_HAZARD_ANIM_FRAMES := 9
+const PROP_HAZARD_ANIM_FRAME_DURATION := 0.09
+const PROP_SIZE := Vector2(52, 52)
 const BOARD_CENTER_RATIO := Vector2(0.50, 0.56)
 const BOARD_SIZE_RATIO := Vector2(0.52, 0.42)
 
@@ -217,10 +224,55 @@ func _is_walkable(pos: Vector2i, ignored_unit = null) -> bool:
 
 
 func _draw_obstacles() -> void:
+	# Draw the prop sprite when available; only fall back to the bare diamond tile
+	# if the sprite is missing, so prop cells don't show a stray diamond underneath.
 	for pos: Vector2i in _layout_positions("hazards"):
-		_draw_terrain_tile(pos, COLOR_HAZARD, COLOR_HAZARD_BORDER, BattleIsoTile.VARIANT_HAZARD)
+		if not _draw_hazard_prop(pos):
+			_draw_terrain_tile(pos, COLOR_HAZARD, COLOR_HAZARD_BORDER, BattleIsoTile.VARIANT_HAZARD)
 	for pos: Vector2i in _layout_positions("blockers"):
-		_draw_terrain_tile(pos, COLOR_OBSTACLE, COLOR_OBSTACLE_BORDER, BattleIsoTile.VARIANT_BLOCKER)
+		if not _draw_terrain_prop(pos, PROP_BLOCKER_PATH):
+			_draw_terrain_tile(pos, COLOR_OBSTACLE, COLOR_OBSTACLE_BORDER, BattleIsoTile.VARIANT_BLOCKER)
+
+
+func _draw_hazard_prop(pos: Vector2i) -> bool:
+	# Prefer the animated coil sheet; fall back to the static hazard sprite.
+	if ResourceLoader.exists(PROP_HAZARD_ANIM_PATH):
+		var sheet := load(PROP_HAZARD_ANIM_PATH) as Texture2D
+		if sheet != null:
+			var anim := BattleAnimatedPropScene.new() as BattleAnimatedProp
+			_place_prop(anim, pos)
+			anim.setup(sheet, PROP_HAZARD_ANIM_FRAMES, PROP_HAZARD_ANIM_FRAME_DURATION)
+			return true
+	return _draw_terrain_prop(pos, PROP_HAZARD_PATH)
+
+
+func _draw_terrain_prop(pos: Vector2i, texture_path: String) -> bool:
+	if not ResourceLoader.exists(texture_path):
+		return false
+	var tex := load(texture_path) as Texture2D
+	if tex == null:
+		return false
+	var prop := TextureRect.new()
+	prop.texture = tex
+	prop.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	prop.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_place_prop(prop, pos)
+	return true
+
+
+# Sizes, positions, depth-sorts and parents a prop control on the given tile.
+func _place_prop(prop: Control, pos: Vector2i) -> void:
+	prop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	prop.size = PROP_SIZE
+	prop.custom_minimum_size = PROP_SIZE
+	# Center horizontally on the tile; seat the prop base on the tile's lower half.
+	prop.position = _iso_to_screen(pos) + Vector2(
+		(UNIT_SIZE.x - PROP_SIZE.x) * 0.5,
+		UNIT_SIZE.y - PROP_SIZE.y - (PROP_SIZE.y - MOVE_TILE_SIZE.y) * 0.5
+	)
+	# Depth-sort props alongside units so a unit in front/behind layers correctly.
+	prop.z_index = 5 + (pos.x + pos.y) * 10 + pos.x
+	_arena.add_child(prop)
 
 
 func _draw_terrain_tile(pos: Vector2i, fill_color: Color, border_color: Color, variant := BattleIsoTile.VARIANT_MOVE) -> void:
@@ -1984,6 +2036,7 @@ func _play_down_feedback(unit: Dictionary) -> void:
 	var visual := unit.get("visual_root", null) as BattleUnitVisual
 	if visual != null:
 		visual.play_down()
+		await get_tree().create_timer(0.18).timeout
 	if visual == null and unit.get("rect_node", null) == null:
 		await get_tree().create_timer(0.2).timeout
 		return
