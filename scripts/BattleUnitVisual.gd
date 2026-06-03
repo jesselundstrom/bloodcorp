@@ -110,6 +110,13 @@ const ANIM_FRAMES := {
 	"hit": 2,
 	"downed": 4,
 }
+const ANIM_FRAME_DURATIONS := {
+	"walk": 0.08,
+	"melee_attack": 0.045,
+	"ranged_attack": 0.055,
+	"hit": 0.04,
+	"downed": 0.055,
+}
 
 var shadow_node: ShadowNode
 var ring_node: RingNode
@@ -126,7 +133,7 @@ var _detected_frames := {}  # anim_name -> actual frame count detected from shee
 var _current_anim := "idle"
 var _current_frame := 0
 var _anim_elapsed := 0.0
-var _frame_duration := 0.26
+var _frame_duration := 0.12
 var _loop_anim := true
 var _advance_frames := true
 var _facing_left := false
@@ -210,6 +217,7 @@ func play(anim_name: String, loop := true) -> void:
 	_current_anim = anim_name
 	_current_frame = 0
 	_anim_elapsed = 0.0
+	_frame_duration = float(ANIM_FRAME_DURATIONS.get(anim_name, 0.12))
 	_loop_anim = loop
 	_advance_frames = anim_name != "idle"
 	_apply_frame()
