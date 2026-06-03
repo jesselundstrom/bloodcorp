@@ -19,10 +19,18 @@ class RingNode:
 
 	var ring_color: Color = Color(0, 0, 0, 0)
 	var ring_width: float = 2.0
+	var pulse_enabled := false
+	var _pulse := 0.0
 
-	func setup(p_color: Color, p_width := 2.0) -> void:
+	func setup(p_color: Color, p_width := 2.0, p_pulse := false) -> void:
 		ring_color = p_color
 		ring_width = p_width
+		pulse_enabled = p_pulse
+		set_process(pulse_enabled)
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		_pulse = fmod(_pulse + delta * 4.2, TAU)
 		queue_redraw()
 
 	func _draw() -> void:
@@ -35,6 +43,10 @@ class RingNode:
 			Vector2(0, size.y * 0.5),
 			Vector2(size.x * 0.5, 0),
 		])
+		if pulse_enabled:
+			var pulse_alpha := 0.20 + 0.22 * (sin(_pulse) * 0.5 + 0.5)
+			var pulse_color := Color(ring_color.r, ring_color.g, ring_color.b, pulse_alpha)
+			draw_polyline(points, pulse_color, ring_width + 3.0, true)
 		draw_polyline(points, ring_color, ring_width, true)
 
 
@@ -119,10 +131,15 @@ const ANIM_FRAME_DURATIONS := {
 }
 
 var shadow_node: ShadowNode
+var base_ring_node: RingNode
 var ring_node: RingNode
 var sprite_node: TextureRect
 var status_node: StatusNode
 var hp_bar_node: HpBarNode
+var nameplate_node: PanelContainer
+var nameplate_accent: ColorRect
+var nameplate_name: Label
+var nameplate_hp: Label
 
 var _sheet_texture: Texture2D
 var _fallback_texture: Texture2D
@@ -158,38 +175,93 @@ func setup(unit_size: Vector2, ring_size: Vector2) -> void:
 	shadow_node.z_index = 0
 	add_child(shadow_node)
 
+	base_ring_node = RingNode.new()
+	base_ring_node.size = ring_size
+	base_ring_node.position = shadow_node.position
+	base_ring_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	base_ring_node.z_index = 1
+	add_child(base_ring_node)
+
 	ring_node = RingNode.new()
 	ring_node.size = ring_size
 	ring_node.position = shadow_node.position
 	ring_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ring_node.z_index = 1
+	ring_node.z_index = 2
 	add_child(ring_node)
 
 	sprite_node = TextureRect.new()
-	sprite_node.size = Vector2(96, 96)
+	sprite_node.size = Vector2(96, 96) * (unit_size.x / 56.0)
 	sprite_node.custom_minimum_size = sprite_node.size
 	sprite_node.pivot_offset = sprite_node.size * 0.5
-	_sprite_base_pos = Vector2((unit_size.x - sprite_node.size.x) * 0.5, -28)
+	_sprite_base_pos = Vector2((unit_size.x - sprite_node.size.x) * 0.5, -28 * (unit_size.x / 56.0))
 	sprite_node.position = _sprite_base_pos
 	sprite_node.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	sprite_node.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	sprite_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	sprite_node.z_index = 2
+	sprite_node.z_index = 3
 	add_child(sprite_node)
 
 	status_node = StatusNode.new()
 	status_node.size = Vector2(24, 18)
 	status_node.position = Vector2(unit_size.x - 18, -4)
 	status_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	status_node.z_index = 3
+	status_node.z_index = 4
 	add_child(status_node)
 
 	hp_bar_node = HpBarNode.new()
-	hp_bar_node.size = Vector2(42, 5)
+	hp_bar_node.size = Vector2(42, 5) * (unit_size.x / 56.0)
 	hp_bar_node.position = Vector2((unit_size.x - hp_bar_node.size.x) * 0.5, -27)
 	hp_bar_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hp_bar_node.z_index = 4
+	hp_bar_node.z_index = 5
 	add_child(hp_bar_node)
+
+	_build_nameplate(unit_size)
+
+
+func _build_nameplate(unit_size: Vector2) -> void:
+	nameplate_node = PanelContainer.new()
+	nameplate_node.visible = false
+	nameplate_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	nameplate_node.custom_minimum_size = Vector2(104, 30)
+	nameplate_node.position = Vector2((unit_size.x - nameplate_node.custom_minimum_size.x) * 0.5, -58 * (unit_size.x / 56.0))
+	nameplate_node.z_index = 6
+	var panel_style := StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.0, 0.0, 0.0, 0.72)
+	panel_style.border_color = Color(1, 1, 1, 0.22)
+	panel_style.set_border_width_all(1)
+	panel_style.set_corner_radius_all(3)
+	panel_style.content_margin_left = 5
+	panel_style.content_margin_right = 5
+	panel_style.content_margin_top = 3
+	panel_style.content_margin_bottom = 3
+	nameplate_node.add_theme_stylebox_override("panel", panel_style)
+	add_child(nameplate_node)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	nameplate_node.add_child(row)
+
+	nameplate_accent = ColorRect.new()
+	nameplate_accent.custom_minimum_size = Vector2(4, 22)
+	nameplate_accent.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(nameplate_accent)
+
+	var labels := VBoxContainer.new()
+	labels.add_theme_constant_override("separation", 0)
+	labels.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(labels)
+
+	nameplate_name = Label.new()
+	nameplate_name.clip_text = true
+	nameplate_name.add_theme_font_size_override("font_size", 14)
+	nameplate_name.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+	labels.add_child(nameplate_name)
+
+	nameplate_hp = Label.new()
+	nameplate_hp.clip_text = true
+	nameplate_hp.add_theme_font_size_override("font_size", 12)
+	nameplate_hp.add_theme_color_override("font_color", Color(0.78, 0.82, 0.90, 1))
+	labels.add_child(nameplate_hp)
 
 
 func set_texture_source(sheet_texture: Texture2D, fallback_texture: Texture2D, frame_overrides: Dictionary = {}) -> void:
@@ -232,14 +304,18 @@ func set_facing(direction: Vector2i) -> void:
 func set_state(state: Dictionary) -> void:
 	var hovered := bool(state.get("hovered", false))
 	var targetable := bool(state.get("targetable", false))
+	var active := bool(state.get("active", false))
+	var selected := bool(state.get("selected", false))
+	var team_color: Color = state.get("team_color", Color(0.0, 1.0, 0.8, 1.0))
 	sprite_node.modulate = Color(1.28, 1.28, 1.28, 1.0) if hovered and targetable else Color(1, 1, 1, 1)
 
-	if bool(state.get("selected", false)):
-		ring_node.setup(Color(1, 1, 1, 1), 3.0)
+	base_ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.56), 2.0)
+	if selected:
+		ring_node.setup(Color(1, 1, 1, 1), 4.0, true)
 	elif hovered and targetable:
-		ring_node.setup(Color(1, 1, 1, 0.45), 2.0)
-	elif bool(state.get("active", false)):
-		ring_node.setup(Color(0.0, 1.0, 0.8, 0.85), 2.0)
+		ring_node.setup(Color(1, 1, 1, 0.64), 3.0)
+	elif active:
+		ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.95), 4.0, true)
 	elif bool(state.get("sponsor_mark", false)):
 		ring_node.setup(Color(1.0, 0.667, 0.0, 0.9), 2.0)
 	elif bool(state.get("execution_mark", false)):
@@ -253,9 +329,21 @@ func set_state(state: Dictionary) -> void:
 	elif bool(state.get("sponsor_mark", false)):
 		mark_color = Color(1.0, 0.667, 0.0, 1.0)
 	status_node.setup(mark_color, bool(state.get("low_hp", false)))
-	hp_bar_node.active = bool(state.get("active", false))
+	hp_bar_node.active = active
 	hp_bar_node.queue_redraw()
-	set_active_idle(bool(state.get("active", false)))
+	set_active_idle(active)
+	_update_nameplate(state, team_color, active, hovered, selected)
+
+
+func _update_nameplate(state: Dictionary, team_color: Color, active: bool, hovered: bool, selected: bool) -> void:
+	if nameplate_node == null:
+		return
+	nameplate_node.visible = active or hovered or selected
+	if not nameplate_node.visible:
+		return
+	nameplate_accent.color = team_color
+	nameplate_name.text = str(state.get("unit_name", "UNIT")).to_upper()
+	nameplate_hp.text = "HP %d/%d" % [int(state.get("hp_current", 0)), int(state.get("hp_max", 1))]
 
 
 func set_hp(current: int, maximum: int, team_color: Color, active := false) -> void:

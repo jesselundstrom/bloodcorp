@@ -2,7 +2,11 @@ class_name BattleIsoTile
 extends Control
 
 const VARIANT_MOVE := "move"
+const VARIANT_PATH := "path"
 const VARIANT_ATTACK := "attack"
+const VARIANT_ATTACK_RANGE := "attack_range"
+const VARIANT_VALID_TARGET := "valid_target"
+const VARIANT_INVALID_TARGET := "invalid_target"
 const VARIANT_BLOCKER := "blocker"
 const VARIANT_HAZARD := "hazard"
 
@@ -44,6 +48,14 @@ func _draw() -> void:
 			_draw_blocker()
 		VARIANT_HAZARD:
 			_draw_hazard()
+		VARIANT_PATH:
+			_draw_path()
+		VARIANT_ATTACK_RANGE:
+			_draw_attack_range()
+		VARIANT_VALID_TARGET:
+			_draw_target(true)
+		VARIANT_INVALID_TARGET:
+			_draw_target(false)
 		_:
 			_draw_basic()
 
@@ -51,6 +63,35 @@ func _draw() -> void:
 func _draw_basic() -> void:
 	var points := _diamond_points()
 	draw_polygon(points, PackedColorArray([fill_color]))
+	_draw_outline(points, border_color, border_width)
+
+
+func _draw_path() -> void:
+	var points := _diamond_points()
+	draw_polygon(points, PackedColorArray([fill_color]))
+	var center := size * 0.5
+	draw_circle(center, minf(size.x, size.y) * 0.12, Color(1.0, 0.95, 0.55, 0.42))
+	_draw_outline(points, border_color, border_width)
+
+
+func _draw_attack_range() -> void:
+	var points := _diamond_points()
+	draw_polygon(points, PackedColorArray([fill_color]))
+	var center := size * 0.5
+	draw_line(Vector2(center.x - size.x * 0.16, center.y), Vector2(center.x + size.x * 0.16, center.y), Color(1.0, 0.22, 0.34, 0.18), 1.0)
+	draw_line(Vector2(center.x, center.y - size.y * 0.16), Vector2(center.x, center.y + size.y * 0.16), Color(1.0, 0.22, 0.34, 0.18), 1.0)
+	_draw_outline(points, border_color, border_width)
+
+
+func _draw_target(valid: bool) -> void:
+	var points := _diamond_points()
+	draw_polygon(points, PackedColorArray([fill_color]))
+	var center := size * 0.5
+	var color := border_color if valid else Color(0.72, 0.58, 0.62, 0.42)
+	var radius := minf(size.x, size.y) * (0.28 if valid else 0.22)
+	draw_arc(center, radius, 0, TAU, 28, color, 2.0 if valid else 1.0)
+	draw_line(center + Vector2(-radius * 0.7, 0), center + Vector2(radius * 0.7, 0), color, 1.0)
+	draw_line(center + Vector2(0, -radius * 0.55), center + Vector2(0, radius * 0.55), color, 1.0)
 	_draw_outline(points, border_color, border_width)
 
 

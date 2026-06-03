@@ -18,20 +18,22 @@ const ENEMY_NAMES := [
 
 const GRID_COLS := 9
 const GRID_ROWS := 6
-const UNIT_SIZE := Vector2(56, 56)
-const MOVE_TILE_SIZE := Vector2(42, 28)
-const RING_SIZE := Vector2(52, 30)
+const TACTICAL_CAMERA_ZOOM := 1.25
+const UNIT_SIZE := Vector2(56, 56) * TACTICAL_CAMERA_ZOOM
+const MOVE_TILE_SIZE := Vector2(42, 28) * TACTICAL_CAMERA_ZOOM
+const RING_SIZE := Vector2(52, 30) * TACTICAL_CAMERA_ZOOM
 const DEFAULT_MOVE_RANGE := 3
 const DEFAULT_ATTACK_RANGE := 1
 const MOVE_STEP_DURATION := 0.16
 const ATTACK_LUNGE_DURATION := 0.11
+const HIT_FREEZE_DURATION := 0.055
 const ARENA_BG_PATH := "res://assets/sprites/arena/broadcast_arena_bg.png"
 const PROP_BLOCKER_PATH := "res://assets/sprites/arena/prop_blocker.png"
 const PROP_HAZARD_PATH := "res://assets/sprites/arena/prop_hazard.png"
 const PROP_HAZARD_ANIM_PATH := "res://assets/sprites/arena/prop_hazard_anim.png"
 const PROP_HAZARD_ANIM_FRAMES := 9
 const PROP_HAZARD_ANIM_FRAME_DURATION := 0.09
-const PROP_SIZE := Vector2(52, 52)
+const PROP_SIZE := Vector2(52, 52) * TACTICAL_CAMERA_ZOOM
 const BOARD_CENTER_RATIO := Vector2(0.50, 0.56)
 const BOARD_SIZE_RATIO := Vector2(0.52, 0.42)
 
@@ -67,6 +69,10 @@ const COLOR_ATTACK_READY := Color(1.0, 0.133, 0.267, 1.0)
 const COLOR_ATTACK_DISABLED := Color(0.22, 0.22, 0.25, 1.0)
 const COLOR_MOVE_TILE := Color(0.0, 1.0, 0.8, 0.28)
 const COLOR_MOVE_TILE_HOVER := Color(0.0, 1.0, 0.8, 0.52)
+const COLOR_PATH_TILE := Color(1.0, 0.667, 0.0, 0.36)
+const COLOR_ATTACK_RANGE_TILE := Color(1.0, 0.133, 0.267, 0.09)
+const COLOR_VALID_TARGET_TILE := Color(1.0, 0.133, 0.267, 0.34)
+const COLOR_INVALID_TARGET_TILE := Color(0.55, 0.42, 0.46, 0.16)
 const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
 const COLOR_OBSTACLE := Color(0.10, 0.08, 0.06, 0.68)
 const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.45)
@@ -121,6 +127,7 @@ var _battle_over: bool = false
 var _selected_target = null
 var _hovered_target = null
 var _move_tiles: Array = []
+var _path_tiles: Array = []
 var _attack_range_tiles: Array = []
 var _sprite_sheet: Texture2D = null
 var _animated_sheets: Dictionary = {}
@@ -139,6 +146,7 @@ var _unit_hp_label: Label = null
 var _unit_stats_label: Label = null
 var _unit_skill_label: Label = null
 var _unit_state_chips: Dictionary = {}
+var _arena_base_position := Vector2.ZERO
 
 @onready var _arena: Control = $Layout/MainRow/Arena
 @onready var _combat_log_bar: PanelContainer = $Layout/CombatLogBar
@@ -175,6 +183,7 @@ func _ready() -> void:
 	_sort_initiative()
 	await get_tree().process_frame
 	await get_tree().process_frame
+	_arena_base_position = _arena.position
 	_draw_arena_floor()
 	_draw_obstacles()
 	_place_units()
@@ -239,7 +248,7 @@ func _draw_hazard_prop(pos: Vector2i) -> bool:
 	if ResourceLoader.exists(PROP_HAZARD_ANIM_PATH):
 		var sheet := load(PROP_HAZARD_ANIM_PATH) as Texture2D
 		if sheet != null:
-			var anim := BattleAnimatedPropScene.new() as BattleAnimatedProp
+			var anim = BattleAnimatedPropScene.new()
 			_place_prop(anim, pos)
 			anim.setup(sheet, PROP_HAZARD_ANIM_FRAMES, PROP_HAZARD_ANIM_FRAME_DURATION)
 			return true
@@ -633,17 +642,17 @@ func _style_button(btn: Button, role := "primary") -> void:
 	btn.add_theme_font_size_override("font_size", UITheme.SIZE_SM)
 
 
-func _style_attack_button(has_target: bool) -> void:
+func _style_attack_button(has_target: bool, selected := false) -> void:
 	var normal := StyleBoxFlat.new()
-	normal.bg_color = COLOR_ATTACK_READY if has_target else COLOR_ATTACK_DISABLED
-	normal.border_color = COLOR_ATTACK_READY if has_target else Color(0.36, 0.36, 0.4, 1.0)
-	normal.set_border_width_all(2)
+	normal.bg_color = Color(0.78, 0.04, 0.12, 1.0) if selected else (COLOR_ATTACK_READY if has_target else COLOR_ATTACK_DISABLED)
+	normal.border_color = Color(1.0, 0.86, 0.32, 1.0) if selected else (COLOR_ATTACK_READY if has_target else Color(0.36, 0.36, 0.4, 1.0))
+	normal.set_border_width_all(3 if selected else 2)
 	_btn_attack.add_theme_stylebox_override("normal", normal)
 
 	var hover := StyleBoxFlat.new()
 	hover.bg_color = Color(1.0, 0.22, 0.34, 1.0) if has_target else COLOR_ATTACK_DISABLED
-	hover.border_color = Color(1.0, 0.45, 0.55, 1.0) if has_target else Color(0.36, 0.36, 0.4, 1.0)
-	hover.set_border_width_all(2)
+	hover.border_color = Color(1.0, 0.86, 0.32, 1.0) if selected else (Color(1.0, 0.45, 0.55, 1.0) if has_target else Color(0.36, 0.36, 0.4, 1.0))
+	hover.set_border_width_all(3 if selected else 2)
 	_btn_attack.add_theme_stylebox_override("hover", hover)
 
 	var pressed := StyleBoxFlat.new()
@@ -1130,32 +1139,65 @@ func _show_move_tiles(unit: Dictionary) -> void:
 		tile.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		tile.z_index = 4
 		tile.gui_input.connect(_on_move_tile_gui_input.bind(grid_pos))
-		tile.mouse_entered.connect(_on_move_tile_mouse_entered.bind(tile))
+		tile.mouse_entered.connect(_on_move_tile_mouse_entered.bind(tile, grid_pos))
 		tile.mouse_exited.connect(_on_move_tile_mouse_exited.bind(tile))
 		_arena.add_child(tile)
 		_move_tiles.append(tile)
 
 
 func _clear_move_tiles() -> void:
+	_clear_path_tiles()
 	for tile: Control in _move_tiles:
 		if is_instance_valid(tile):
 			tile.queue_free()
 	_move_tiles.clear()
 
 
+func _show_path_tiles(unit: Dictionary, destination: Vector2i) -> void:
+	_clear_path_tiles()
+	var path := _find_path(unit, destination)
+	for grid_pos: Vector2i in path:
+		var tile := _create_iso_tile_visual(grid_pos, COLOR_PATH_TILE, Color(1.0, 0.86, 0.32, 0.78), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_PATH)
+		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		tile.z_index = 5
+		_arena.add_child(tile)
+		_path_tiles.append(tile)
+
+
+func _clear_path_tiles() -> void:
+	for tile: Control in _path_tiles:
+		if is_instance_valid(tile):
+			tile.queue_free()
+	_path_tiles.clear()
+
+
 func _show_attack_range_tiles(unit: Dictionary) -> void:
 	_clear_attack_range_tiles()
 	var atk_range: int = int(unit.get("attack_range", DEFAULT_ATTACK_RANGE))
-	if _is_animating or atk_range <= 1 or not _is_player_turn():
+	if _is_animating or not _is_player_turn() or not bool(unit.get("has_main_action", true)):
 		return
+
+	for y in range(GRID_ROWS):
+		for x in range(GRID_COLS):
+			var grid_pos := Vector2i(x, y)
+			if grid_pos == unit["grid_pos"] or _grid_distance(unit["grid_pos"], grid_pos) > atk_range:
+				continue
+			var range_tile := _create_iso_tile_visual(grid_pos, COLOR_ATTACK_RANGE_TILE, Color(1.0, 0.133, 0.267, 0.18), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_ATTACK_RANGE)
+			range_tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			range_tile.z_index = 2
+			_arena.add_child(range_tile)
+			_attack_range_tiles.append(range_tile)
+
 	for u: Dictionary in _units:
 		if u["team"] != "enemy" or int(u.get("hp_current", 0)) <= 0:
 			continue
-		if _grid_distance(unit["grid_pos"], u["grid_pos"]) > atk_range:
-			continue
-		var tile := _create_iso_tile_visual(u["grid_pos"], Color(1.0, 0.133, 0.267, 0.16), Color(1.0, 0.133, 0.267, 0.42), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_ATTACK)
+		var valid := _grid_distance(unit["grid_pos"], u["grid_pos"]) <= atk_range
+		var fill := COLOR_VALID_TARGET_TILE if valid else COLOR_INVALID_TARGET_TILE
+		var border := Color(1.0, 0.133, 0.267, 0.82) if valid else Color(0.72, 0.58, 0.62, 0.36)
+		var variant := BattleIsoTile.VARIANT_VALID_TARGET if valid else BattleIsoTile.VARIANT_INVALID_TARGET
+		var tile := _create_iso_tile_visual(u["grid_pos"], fill, border, MOVE_TILE_SIZE, variant)
 		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.z_index = 3
+		tile.z_index = 4 if valid else 3
 		_arena.add_child(tile)
 		_attack_range_tiles.append(tile)
 
@@ -1196,12 +1238,14 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 	accept_event()
 
 
-func _on_move_tile_mouse_entered(tile: BattleIsoTile) -> void:
+func _on_move_tile_mouse_entered(tile: BattleIsoTile, grid_pos: Vector2i) -> void:
 	tile.setup(COLOR_MOVE_TILE_HOVER, Color(1.0, 1.0, 1.0, 0.7), 2.0, BattleIsoTile.VARIANT_MOVE)
+	_show_path_tiles(_get_active_unit(), grid_pos)
 
 
 func _on_move_tile_mouse_exited(tile: BattleIsoTile) -> void:
 	tile.setup(COLOR_MOVE_TILE, Color(0.0, 1.0, 0.8, 0.48), 2.0, BattleIsoTile.VARIANT_MOVE)
+	_clear_path_tiles()
 
 
 func _update_objective_label() -> void:
@@ -1323,6 +1367,10 @@ func _update_unit_visual(unit: Dictionary, active_unit: Dictionary) -> void:
 			"execution_mark": unit == _marked_unit and int(unit.get("hp_current", 0)) > 0,
 			"low_hp": float(unit.get("hp_current", 0)) / hp_max <= 0.35,
 			"team": unit.get("team", ""),
+			"team_color": team_color,
+			"unit_name": unit.get("name", "UNIT"),
+			"hp_current": int(unit.get("hp_current", 0)),
+			"hp_max": int(unit.get("hp_max", 1)),
 		})
 		return
 
@@ -1376,15 +1424,16 @@ func _is_valid_target(target) -> bool:
 func _update_targeting_enabled() -> void:
 	for unit: Dictionary in _units:
 		var targetable: bool = not _is_animating and _is_targetable(unit)
+		var hoverable: bool = not _is_animating and int(unit.get("hp_current", 0)) > 0
 		var visual := unit.get("visual_root", null) as Control
 		if visual != null:
-			visual.mouse_filter = Control.MOUSE_FILTER_STOP if targetable else Control.MOUSE_FILTER_IGNORE
+			visual.mouse_filter = Control.MOUSE_FILTER_STOP if hoverable else Control.MOUSE_FILTER_IGNORE
 			visual.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if targetable else Control.CURSOR_ARROW
 			continue
 		if unit["rect_node"] == null:
 			continue
 		var rect := unit["rect_node"] as Control
-		rect.mouse_filter = Control.MOUSE_FILTER_STOP if targetable else Control.MOUSE_FILTER_IGNORE
+		rect.mouse_filter = Control.MOUSE_FILTER_STOP if hoverable else Control.MOUSE_FILTER_IGNORE
 		rect.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND if targetable else Control.CURSOR_ARROW
 
 
@@ -1413,7 +1462,7 @@ func _update_attack_button_state() -> void:
 		else:
 			_btn_attack.text = "ATTACK" if has_target else "SELECT TARGET"
 			_btn_attack.tooltip_text = "" if has_target else "Select an enemy in attack range."
-		_style_attack_button(has_action and has_target)
+		_style_attack_button(has_action and has_target, has_action and has_target)
 	else:
 		_btn_attack.disabled = true
 		_btn_attack.text = "ATTACK"
@@ -1801,7 +1850,7 @@ func _on_unit_gui_input(event: InputEvent, unit: Dictionary) -> void:
 func _on_unit_mouse_entered(unit: Dictionary) -> void:
 	if _is_animating:
 		return
-	if not _is_targetable(unit):
+	if int(unit.get("hp_current", 0)) <= 0:
 		return
 	_hovered_target = unit
 	_highlight_active(_initiative[_turn_index])
@@ -1987,6 +2036,20 @@ func _show_floating_text(text: String, world_pos: Vector2, color: Color, crit :=
 	tween.finished.connect(lbl.queue_free)
 
 
+func _play_hit_freeze() -> void:
+	await get_tree().create_timer(HIT_FREEZE_DURATION).timeout
+
+
+func _bump_arena(direction: Vector2) -> void:
+	if direction == Vector2.ZERO:
+		direction = Vector2.RIGHT
+	_arena.position = _arena_base_position
+	var bump := direction.normalized() * 5.0
+	var tween := create_tween()
+	tween.tween_property(_arena, "position", _arena_base_position + bump, 0.035).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_arena, "position", _arena_base_position, 0.075).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+
+
 func _play_attack_feedback(attacker: Dictionary, target: Dictionary, hit: bool, damage: int, crit := false) -> void:
 	var attacker_visual := attacker.get("visual_root", null) as BattleUnitVisual
 	var target_visual := target.get("visual_root", null) as BattleUnitVisual
@@ -2019,8 +2082,10 @@ func _play_attack_feedback(attacker: Dictionary, target: Dictionary, hit: bool, 
 		await tween.finished
 
 	if hit:
+		_bump_arena(direction)
 		if not is_ranged:
 			BattleCombatEffectScene.play_melee_hit(_arena, _unit_float_position(attacker), _unit_float_position(target), crit)
+		await _play_hit_freeze()
 		await _flash_hit(target)
 		_show_floating_text("CRIT -%d" % damage if crit else "-%d" % damage, _unit_float_position(target), Color(1.0, 0.22, 0.08, 1.0) if crit else Color(1.0, 0.667, 0.0, 1.0), crit)
 	else:
