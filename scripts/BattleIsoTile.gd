@@ -13,6 +13,7 @@ const VARIANT_HAZARD_WARNING := "hazard_warning"
 const VARIANT_HAZARD_ACTIVE := "hazard_active"
 const VARIANT_RAISED := "raised"
 const VARIANT_HIGH := "high"
+const VARIANT_RAMP := "ramp"
 const VARIANT_ROUGH := "rough"
 const VARIANT_PUSH := "push"
 const VARIANT_RING_OUT := "ring_out"
@@ -73,6 +74,8 @@ func _draw() -> void:
 			_draw_elevation(false)
 		VARIANT_HIGH:
 			_draw_elevation(true)
+		VARIANT_RAMP:
+			_draw_ramp()
 		VARIANT_ROUGH:
 			_draw_rough()
 		VARIANT_PUSH:
@@ -89,8 +92,21 @@ func _draw() -> void:
 			_draw_target(true)
 		VARIANT_INVALID_TARGET:
 			_draw_target(false)
+		VARIANT_MOVE:
+			_draw_move_reticle()
 		_:
 			_draw_basic()
+
+
+func _draw_move_reticle() -> void:
+	var center := size * 0.5
+	var radius := minf(size.x, size.y) * 0.32
+	var color := border_color
+	draw_circle(center, radius * 0.34, Color(fill_color.r, fill_color.g, fill_color.b, minf(fill_color.a + 0.08, 0.22)))
+	draw_arc(center, radius, -PI * 0.82, -PI * 0.58, 8, color, border_width)
+	draw_arc(center, radius, -PI * 0.42, -PI * 0.18, 8, color, border_width)
+	draw_arc(center, radius, PI * 0.18, PI * 0.42, 8, color, border_width)
+	draw_arc(center, radius, PI * 0.58, PI * 0.82, 8, color, border_width)
 
 
 func _draw_basic() -> void:
@@ -108,24 +124,24 @@ func _draw_path() -> void:
 
 
 func _draw_attack_range() -> void:
-	var points := _diamond_points()
-	draw_polygon(points, PackedColorArray([fill_color]))
 	var center := size * 0.5
-	draw_line(Vector2(center.x - size.x * 0.16, center.y), Vector2(center.x + size.x * 0.16, center.y), Color(1.0, 0.22, 0.34, 0.18), 1.0)
-	draw_line(Vector2(center.x, center.y - size.y * 0.16), Vector2(center.x, center.y + size.y * 0.16), Color(1.0, 0.22, 0.34, 0.18), 1.0)
-	_draw_outline(points, border_color, border_width)
+	var color := border_color
+	draw_arc(center, minf(size.x, size.y) * 0.30, -PI * 0.08, PI * 1.08, 24, Color(color.r, color.g, color.b, color.a * 0.44), 1.0)
 
 
 func _draw_target(valid: bool) -> void:
-	var points := _diamond_points()
-	draw_polygon(points, PackedColorArray([fill_color]))
 	var center := size * 0.5
 	var color := border_color if valid else Color(0.72, 0.58, 0.62, 0.42)
-	var radius := minf(size.x, size.y) * (0.28 if valid else 0.22)
-	draw_arc(center, radius, 0, TAU, 28, color, 2.0 if valid else 1.0)
-	draw_line(center + Vector2(-radius * 0.7, 0), center + Vector2(radius * 0.7, 0), color, 1.0)
-	draw_line(center + Vector2(0, -radius * 0.55), center + Vector2(0, radius * 0.55), color, 1.0)
-	_draw_outline(points, border_color, border_width)
+	var radius := minf(size.x, size.y) * (0.38 if valid else 0.22)
+	if valid:
+		draw_circle(center, radius * 0.28, Color(color.r, color.g, color.b, 0.12))
+		draw_arc(center, radius, 0, TAU, 36, color, 3.0)
+		draw_line(center + Vector2(-radius * 0.88, 0), center + Vector2(-radius * 0.46, 0), color, 2.0)
+		draw_line(center + Vector2(radius * 0.46, 0), center + Vector2(radius * 0.88, 0), color, 2.0)
+		draw_line(center + Vector2(0, -radius * 0.72), center + Vector2(0, -radius * 0.34), color, 2.0)
+		draw_line(center + Vector2(0, radius * 0.34), center + Vector2(0, radius * 0.72), color, 2.0)
+	else:
+		draw_arc(center, radius, 0, TAU, 24, color, 1.0)
 
 
 func _draw_blocker() -> void:
@@ -187,8 +203,6 @@ func _draw_hazard_active() -> void:
 
 
 func _draw_elevation(high: bool) -> void:
-	var shadow := _diamond_points(Vector2(0, 3 if high else 2))
-	draw_polygon(shadow, PackedColorArray([Color(0, 0, 0, 0.22 if high else 0.16)]))
 	var points := _diamond_points()
 	draw_polygon(points, PackedColorArray([fill_color]))
 	var inset := 0.18 if high else 0.24
@@ -199,10 +213,33 @@ func _draw_elevation(high: bool) -> void:
 		Vector2(size.x * inset, size.y * 0.5),
 		Vector2(size.x * 0.5, size.y * inset),
 	])
-	draw_polyline(inner, Color(0.0, 1.0, 0.8, 0.24 if high else 0.16), 1.0, true)
+	draw_polyline(inner, Color(border_color.r, border_color.g, border_color.b, border_color.a), 1.0, true)
 	if high:
-		draw_circle(size * 0.5, minf(size.x, size.y) * 0.08, Color(1.0, 0.95, 0.55, 0.32))
-	_draw_outline(points, border_color, border_width)
+		draw_circle(size * 0.5, minf(size.x, size.y) * 0.06, Color(1.0, 0.95, 0.55, 0.14))
+	_draw_outline(points, Color(border_color.r, border_color.g, border_color.b, border_color.a * 0.55), maxf(1.0, border_width * 0.65))
+
+
+func _draw_ramp() -> void:
+	var points := _diamond_points()
+	draw_polygon(points, PackedColorArray([fill_color]))
+	var center := size * 0.5
+	var color := border_color
+	var lower := PackedVector2Array([
+		Vector2(size.x * 0.22, size.y * 0.60),
+		Vector2(size.x * 0.50, size.y * 0.76),
+		Vector2(size.x * 0.78, size.y * 0.60),
+	])
+	var upper := PackedVector2Array([
+		Vector2(size.x * 0.30, size.y * 0.40),
+		Vector2(size.x * 0.50, size.y * 0.28),
+		Vector2(size.x * 0.70, size.y * 0.40),
+	])
+	draw_polyline(lower, Color(color.r, color.g, color.b, color.a * 0.52), 1.0, true)
+	draw_polyline(upper, Color(color.r, color.g, color.b, color.a * 0.70), 1.0, true)
+	draw_line(lower[0], upper[0], Color(color.r, color.g, color.b, color.a * 0.36), 1.0)
+	draw_line(lower[1], center, Color(color.r, color.g, color.b, color.a * 0.32), 1.0)
+	draw_line(lower[2], upper[2], Color(color.r, color.g, color.b, color.a * 0.36), 1.0)
+	_draw_outline(points, Color(color.r, color.g, color.b, color.a * 0.34), maxf(1.0, border_width * 0.55))
 
 
 func _draw_rough() -> void:
@@ -210,8 +247,8 @@ func _draw_rough() -> void:
 	draw_polygon(points, PackedColorArray([fill_color]))
 	for i in range(4):
 		var y := size.y * (0.28 + float(i) * 0.12)
-		draw_line(Vector2(size.x * 0.32, y), Vector2(size.x * 0.68, y + size.y * 0.08), Color(0.75, 0.82, 0.88, 0.12), 1.0)
-	_draw_outline(points, border_color, border_width)
+		draw_line(Vector2(size.x * 0.32, y), Vector2(size.x * 0.68, y + size.y * 0.08), Color(0.75, 0.82, 0.88, 0.055), 1.0)
+	_draw_outline(points, Color(border_color.r, border_color.g, border_color.b, border_color.a * 0.45), maxf(1.0, border_width * 0.55))
 
 
 func _draw_push() -> void:

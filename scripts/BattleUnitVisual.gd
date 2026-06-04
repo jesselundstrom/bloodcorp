@@ -6,9 +6,9 @@ class ShadowNode:
 
 	func _draw() -> void:
 		var center := size * 0.5
-		var radius := Vector2(size.x * 0.38, size.y * 0.24)
-		_draw_ellipse_fill(center, radius, Color(0, 0, 0, 0.18))
-		_draw_ellipse_fill(center + Vector2(0, 1), radius * 0.52, Color(0, 0, 0, 0.10))
+		var radius := Vector2(size.x * 0.50, size.y * 0.31)
+		_draw_ellipse_fill(center + Vector2(0, 1), radius, Color(0, 0, 0, 0.30))
+		_draw_ellipse_fill(center, radius * 0.58, Color(0, 0, 0, 0.18))
 
 	func _draw_ellipse_fill(center: Vector2, radius: Vector2, color: Color) -> void:
 		var points := PackedVector2Array()
@@ -316,11 +316,14 @@ func set_state(state: Dictionary) -> void:
 	var team_color: Color = state.get("team_color", Color(0.0, 1.0, 0.8, 1.0))
 	sprite_node.modulate = Color(1.28, 1.28, 1.28, 1.0) if hovered and targetable else Color(1, 1, 1, 1)
 
-	base_ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.16), 1.0)
+	if targetable:
+		base_ring_node.setup(Color(1.0, 0.133, 0.267, 0.22), 1.0)
+	else:
+		base_ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.13), 1.0)
 	if selected:
 		ring_node.setup(Color(1, 1, 1, 0.92), 3.0, true)
-	elif hovered and targetable:
-		ring_node.setup(Color(1, 1, 1, 0.58), 2.0)
+	elif targetable:
+		ring_node.setup(Color(1.0, 0.133, 0.267, 0.88), 2.5, true)
 	elif active:
 		ring_node.setup(Color(team_color.r, team_color.g, team_color.b, 0.82), 3.0, true)
 	elif bool(state.get("sponsor_mark", false)):

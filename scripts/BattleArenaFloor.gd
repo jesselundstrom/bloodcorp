@@ -11,6 +11,7 @@ var accent_color := Color(0.0, 1.0, 0.8, 1.0)
 var enemy_color := Color(1.0, 0.133, 0.267, 1.0)
 var warning_color := Color(1.0, 0.667, 0.0, 1.0)
 var valid_tiles: Array = []
+var show_lattice := false
 
 
 func setup(cols: int, rows: int, p_tile_size: Vector2, p_unit_size: Vector2, p_board_center_ratio: Vector2, p_board_size_ratio: Vector2, p_valid_tiles: Array = []) -> void:
@@ -32,7 +33,8 @@ func _notification(what: int) -> void:
 func _draw() -> void:
 	if size.x <= 1.0 or size.y <= 1.0:
 		return
-	_draw_grid_lattice()
+	if show_lattice:
+		_draw_grid_lattice()
 	_draw_broadcast_marks()
 
 

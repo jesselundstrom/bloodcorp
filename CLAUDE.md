@@ -65,14 +65,15 @@ A dystopian gladiator manager game with cyberpunk/WH40k aesthetics.
 
 ### Current Implementation Notes
 
-- Battle uses a configurable 13x9 logical isometric grid projected through an ellipse mask so playable tiles follow the arena shape instead of a rectangle.
-- Arena layouts define blockers, rough/raised/high terrain, Plasma Vent hazards with round-based phases, player spawns, and enemy spawns.
-- Player turns support movement-cost-aware clickable movement tiles, one movement, and melee-only basic attacks unless a skill or elevation changes range.
+- Battle uses a configurable 13x9 logical isometric grid projected through an ellipse mask; the grid is now a mostly hidden tactical substrate so arena movement reads more free-form until contextual overlays appear.
+- Arena layouts define blockers, rough/raised/high terrain, ramp paths between elevation levels, Plasma Vent hazards with round-based phases, player spawns, and enemy spawns.
+- Player turns support movement-cost-aware contextual movement reticles, one movement, and melee-only basic attacks unless a skill or elevation changes range.
 - Battle units currently reserve `move_range`, `attack_range`, `has_moved`, `has_main_action`, `has_bonus_action`, and `roster_index` (links back to `GameState.roster` for casualty resolution).
 - Player gladiators reaching 0 HP are **downed** (removed from battle, survive to post-battle d10 casualty roll); enemies die immediately as before.
 - Post-battle casualty roll: d10 — 1=death, 2–4=serious injury, 5–10=minor injury. Injuries are data-driven in `scripts/InjuryData.gd` and stored as `roster[i]["injuries"]` (array of `{key, remaining}` dicts). `GameState.tick_injuries()` decrements recovery once per battle (in `_show_result`, before `save_game()`).
 - Enemy AI advances toward the nearest living player using reachable movement tiles, then attacks if in range.
-- Higher elevation grants a small attack/range edge; attacking uphill has a small penalty. Forced movement from higher to lower elevation causes fall damage.
+- `speed` now derives default movement distance (1-3 => 2, 4-6 => 3, 7-9 => 4, 10+ => 5), while explicit `move_range` remains an override for future equipment/skills.
+- Higher elevation grants a small attack/range edge; attacking uphill has a small penalty. Normal movement changes elevation only through ramp-linked paths. Forced movement from higher to lower elevation causes fall damage.
 - Shove can push enemies, slam them into walls/blockers/units, trigger active Plasma Vents, cause fall damage, or ring out targets at lethal arena edges.
 - Sponsor objectives are tracked during Battle; result rewards/penalties are based on the selected sponsor contract.
 - `SponsorSelect.gd` builds its UI in script; keep parent/child ownership simple because the scene root itself has no authored children.

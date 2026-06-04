@@ -43,6 +43,41 @@ class MovementPathPreview:
 		draw_polyline(points, color, width, true)
 
 
+class AttackRangePreview:
+	extends Control
+
+	var center_point := Vector2.ZERO
+	var radius := Vector2(52, 30)
+	var accent_color := Color(1.0, 0.133, 0.267, 0.32)
+	var _pulse := 0.0
+
+	func setup(p_center: Vector2, p_radius: Vector2, p_accent_color: Color) -> void:
+		center_point = p_center
+		radius = p_radius
+		accent_color = p_accent_color
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_process(true)
+		queue_redraw()
+
+	func _process(delta: float) -> void:
+		_pulse = fmod(_pulse + delta * 2.4, TAU)
+		queue_redraw()
+
+	func _draw() -> void:
+		var pulse_alpha := accent_color.a + 0.10 * (sin(_pulse) * 0.5 + 0.5)
+		var pulse_color := Color(accent_color.r, accent_color.g, accent_color.b, pulse_alpha)
+		_draw_ellipse_outline(center_point, radius, Color(0, 0, 0, 0.38), 4.0)
+		_draw_ellipse_outline(center_point, radius, pulse_color, 2.0)
+		_draw_ellipse_outline(center_point, radius * 0.72, Color(pulse_color.r, pulse_color.g, pulse_color.b, pulse_color.a * 0.34), 1.0)
+
+	func _draw_ellipse_outline(center: Vector2, p_radius: Vector2, color: Color, width: float) -> void:
+		var points := PackedVector2Array()
+		for i in range(65):
+			var t := TAU * float(i) / 64.0
+			points.append(center + Vector2(cos(t) * p_radius.x, sin(t) * p_radius.y))
+		draw_polyline(points, color, width, true)
+
+
 const ENEMY_NAMES := [
 	"GRAK", "VOSS", "ZARETH", "NAXIS", "KRUL", "THANE", "OREX", "VELD",
 	"CRUX", "MORD", "SLASH", "BONE", "WREX", "DRAK", "TYKE", "SORN",
@@ -57,6 +92,7 @@ const GRID_ELLIPSE_RADIUS := Vector2(6.2, 4.1)
 const TACTICAL_CAMERA_ZOOM := 1.25
 const UNIT_SIZE := Vector2(56, 56) * TACTICAL_CAMERA_ZOOM
 const MOVE_TILE_SIZE := Vector2(42, 28) * TACTICAL_CAMERA_ZOOM
+const MOVE_INDICATOR_SIZE := MOVE_TILE_SIZE * 0.40
 const RING_SIZE := Vector2(52, 30) * TACTICAL_CAMERA_ZOOM
 const DEFAULT_MOVE_RANGE := 3
 const DEFAULT_ATTACK_RANGE := 1
@@ -106,13 +142,13 @@ const COLOR_ATTACK_DISABLED := Color(0.22, 0.22, 0.25, 1.0)
 const COLOR_MOVE_TILE := Color(0.0, 1.0, 0.8, 0.28)
 const COLOR_MOVE_TILE_HOVER := Color(0.0, 1.0, 0.8, 0.52)
 const COLOR_PATH_TILE := Color(1.0, 0.667, 0.0, 0.36)
-const COLOR_MOVE_HIT_TILE := Color(0.0, 1.0, 0.8, 0.035)
-const COLOR_MOVE_HIT_BORDER := Color(0.0, 1.0, 0.8, 0.12)
+const COLOR_MOVE_HIT_TILE := Color(0.0, 1.0, 0.8, 0.10)
+const COLOR_MOVE_HIT_BORDER := Color(0.0, 1.0, 0.8, 0.30)
 const COLOR_MOVE_PATH_LINE := Color(0.92, 0.96, 1.0, 0.92)
 const COLOR_MOVE_DESTINATION := Color(0.0, 1.0, 0.8, 0.78)
-const COLOR_ATTACK_RANGE_TILE := Color(1.0, 0.133, 0.267, 0.09)
-const COLOR_VALID_TARGET_TILE := Color(1.0, 0.133, 0.267, 0.34)
-const COLOR_INVALID_TARGET_TILE := Color(0.55, 0.42, 0.46, 0.16)
+const COLOR_ATTACK_RANGE_TILE := Color(1.0, 0.133, 0.267, 0.26)
+const COLOR_VALID_TARGET_TILE := Color(1.0, 0.133, 0.267, 0.08)
+const COLOR_INVALID_TARGET_TILE := Color(0.55, 0.42, 0.46, 0.08)
 const COLOR_TRANSPARENT := Color(0, 0, 0, 0)
 const COLOR_OBSTACLE := Color(0.10, 0.08, 0.06, 0.68)
 const COLOR_OBSTACLE_BORDER := Color(0.55, 0.38, 0.0, 0.45)
@@ -120,9 +156,10 @@ const COLOR_HAZARD := Color(1.0, 0.133, 0.267, 0.22)
 const COLOR_HAZARD_BORDER := Color(1.0, 0.667, 0.0, 0.9)
 const COLOR_HAZARD_WARNING := Color(1.0, 0.667, 0.0, 0.22)
 const COLOR_HAZARD_ACTIVE := Color(1.0, 0.08, 0.04, 0.34)
-const COLOR_ELEVATION := Color(0.0, 1.0, 0.8, 0.10)
-const COLOR_HIGH_GROUND := Color(1.0, 0.667, 0.0, 0.14)
-const COLOR_ROUGH := Color(0.62, 0.70, 0.78, 0.10)
+const COLOR_ELEVATION := Color(0.0, 1.0, 0.8, 0.035)
+const COLOR_HIGH_GROUND := Color(1.0, 0.667, 0.0, 0.055)
+const COLOR_RAMP := Color(0.0, 1.0, 0.8, 0.035)
+const COLOR_ROUGH := Color(0.62, 0.70, 0.78, 0.045)
 const COLOR_PUSH_PREVIEW := Color(1.0, 0.667, 0.0, 0.28)
 const COLOR_RING_OUT := Color(1.0, 0.0, 0.04, 0.34)
 const COLOR_CHARGE := Color(1.0, 0.55, 0.0, 1.0)
@@ -141,6 +178,7 @@ const LETHAL_EDGES_ENABLED := true
 
 const TERRAIN_NORMAL := "normal"
 const TERRAIN_ROUGH := "rough"
+const TERRAIN_RAMP := "ramp"
 const TERRAIN_RAISED := "raised"
 const TERRAIN_HIGH := "high"
 const TERRAIN_HAZARD := "hazard"
@@ -157,8 +195,14 @@ const ARENA_LAYOUTS: Array = [
 	{
 		"name": "FURNACE RUN",
 		"blockers": [Vector2i(5, 2), Vector2i(8, 5), Vector2i(4, 6)],
-		"rough": [Vector2i(4, 3), Vector2i(4, 4), Vector2i(8, 4), Vector2i(8, 6)],
-		"raised": [Vector2i(5, 3), Vector2i(5, 4), Vector2i(7, 4), Vector2i(7, 5)],
+		"rough": [Vector2i(3, 4), Vector2i(4, 3), Vector2i(8, 4), Vector2i(9, 5)],
+		"ramps": [
+			{"pos": Vector2i(4, 4), "elevation": 1},
+			{"pos": Vector2i(8, 4), "elevation": 1},
+			{"pos": Vector2i(6, 3), "elevation": 2},
+			{"pos": Vector2i(6, 5), "elevation": 2},
+		],
+		"raised": [Vector2i(5, 3), Vector2i(5, 4), Vector2i(5, 5), Vector2i(7, 3), Vector2i(7, 4), Vector2i(7, 5)],
 		"high": [Vector2i(6, 4)],
 		"plasma_vents": [
 			{"pos": Vector2i(6, 2), "phase": 1},
@@ -173,9 +217,15 @@ const ARENA_LAYOUTS: Array = [
 	},
 	{
 		"name": "BROKEN PILLARS",
-		"blockers": [Vector2i(5, 3), Vector2i(7, 5), Vector2i(9, 3)],
-		"rough": [Vector2i(4, 5), Vector2i(5, 5), Vector2i(8, 3), Vector2i(8, 4)],
-		"raised": [Vector2i(6, 2), Vector2i(6, 3), Vector2i(7, 3), Vector2i(7, 4)],
+		"blockers": [Vector2i(5, 3), Vector2i(8, 5), Vector2i(9, 3)],
+		"rough": [Vector2i(4, 5), Vector2i(5, 5), Vector2i(8, 3), Vector2i(9, 4)],
+		"ramps": [
+			{"pos": Vector2i(5, 4), "elevation": 1},
+			{"pos": Vector2i(8, 4), "elevation": 1},
+			{"pos": Vector2i(7, 3), "elevation": 2},
+			{"pos": Vector2i(6, 5), "elevation": 2},
+		],
+		"raised": [Vector2i(6, 3), Vector2i(7, 4)],
 		"high": [Vector2i(6, 4), Vector2i(7, 2)],
 		"plasma_vents": [
 			{"pos": Vector2i(4, 4), "phase": 0},
@@ -191,8 +241,13 @@ const ARENA_LAYOUTS: Array = [
 	{
 		"name": "BLOOD CHANNELS",
 		"blockers": [Vector2i(4, 3), Vector2i(8, 5)],
-		"rough": [Vector2i(5, 3), Vector2i(5, 4), Vector2i(6, 5), Vector2i(7, 5)],
-		"raised": [Vector2i(6, 2), Vector2i(7, 2), Vector2i(6, 3), Vector2i(7, 3), Vector2i(8, 3)],
+		"rough": [Vector2i(5, 3), Vector2i(5, 4), Vector2i(6, 5), Vector2i(7, 5), Vector2i(8, 4)],
+		"ramps": [
+			{"pos": Vector2i(5, 2), "elevation": 1},
+			{"pos": Vector2i(8, 3), "elevation": 1},
+			{"pos": Vector2i(7, 3), "elevation": 2},
+		],
+		"raised": [Vector2i(6, 2), Vector2i(6, 3), Vector2i(7, 2), Vector2i(8, 2)],
 		"high": [Vector2i(7, 4)],
 		"plasma_vents": [
 			{"pos": Vector2i(6, 4), "phase": 2},
@@ -350,6 +405,31 @@ func _plasma_vent_positions() -> Array:
 	return out
 
 
+func _ramp_entries() -> Array:
+	return _selected_layout.get("ramps", [])
+
+
+func _ramp_position(entry) -> Vector2i:
+	if entry is Dictionary:
+		return entry.get("pos", Vector2i(-1, -1))
+	if entry is Vector2i:
+		return entry
+	return Vector2i(-1, -1)
+
+
+func _ramp_elevation(entry) -> int:
+	if entry is Dictionary:
+		return int(entry.get("elevation", 1))
+	return 1
+
+
+func _ramp_positions() -> Array:
+	var out: Array = []
+	for ramp in _ramp_entries():
+		out.append(_ramp_position(ramp))
+	return out
+
+
 func _vent_phase_for(pos: Vector2i) -> int:
 	for vent in _plasma_vent_entries():
 		if vent is Dictionary and vent.get("pos", Vector2i(-1, -1)) == pos:
@@ -377,6 +457,7 @@ func _make_tile_data(pos: Vector2i) -> Dictionary:
 		"cover_type": COVER_NONE,
 		"hazard_type": HAZARD_NONE,
 		"hazard_state": HAZARD_IDLE,
+		"is_ramp": false,
 		"valid": valid,
 	}
 
@@ -400,6 +481,12 @@ func _build_tile_metadata() -> void:
 		if _tiles.has(pos):
 			_tiles[pos]["terrain_type"] = TERRAIN_HIGH
 			_tiles[pos]["elevation_level"] = 2
+	for ramp in _ramp_entries():
+		var pos := _ramp_position(ramp)
+		if _tiles.has(pos):
+			_tiles[pos]["terrain_type"] = TERRAIN_RAMP
+			_tiles[pos]["elevation_level"] = _ramp_elevation(ramp)
+			_tiles[pos]["is_ramp"] = true
 	for pos: Vector2i in _plasma_vent_positions():
 		if _tiles.has(pos):
 			_tiles[pos]["terrain_type"] = TERRAIN_HAZARD
@@ -412,6 +499,7 @@ func _build_tile_metadata() -> void:
 			_tiles[pos]["walkable"] = false
 			_tiles[pos]["movement_cost"] = 999
 			_tiles[pos]["cover_type"] = "hard"
+			_tiles[pos]["is_ramp"] = false
 	_refresh_tile_occupancy()
 
 
@@ -446,6 +534,10 @@ func _tile_hazard_state(pos: Vector2i) -> String:
 	return String(_tile_data(pos).get("hazard_state", HAZARD_IDLE))
 
 
+func _is_ramp(pos: Vector2i) -> bool:
+	return bool(_tile_data(pos).get("is_ramp", false))
+
+
 func _is_blocker(pos: Vector2i) -> bool:
 	if _tiles.has(pos):
 		return bool(_tiles[pos].get("blocked", false))
@@ -469,11 +561,13 @@ func _is_walkable(pos: Vector2i, ignored_unit = null) -> bool:
 func _draw_obstacles() -> void:
 	_clear_terrain_visuals()
 	for pos: Vector2i in _layout_positions("rough"):
-		_draw_terrain_tile(pos, COLOR_ROUGH, Color(0.70, 0.78, 0.86, 0.22), BattleIsoTile.VARIANT_ROUGH)
+		_draw_terrain_tile(pos, COLOR_ROUGH, Color(0.70, 0.78, 0.86, 0.08), BattleIsoTile.VARIANT_ROUGH)
 	for pos: Vector2i in _layout_positions("raised"):
-		_draw_terrain_tile(pos, COLOR_ELEVATION, Color(0.0, 1.0, 0.8, 0.26), BattleIsoTile.VARIANT_RAISED)
+		_draw_terrain_tile(pos, COLOR_ELEVATION, Color(0.0, 1.0, 0.8, 0.10), BattleIsoTile.VARIANT_RAISED)
 	for pos: Vector2i in _layout_positions("high"):
-		_draw_terrain_tile(pos, COLOR_HIGH_GROUND, Color(1.0, 0.86, 0.32, 0.38), BattleIsoTile.VARIANT_HIGH)
+		_draw_terrain_tile(pos, COLOR_HIGH_GROUND, Color(1.0, 0.86, 0.32, 0.13), BattleIsoTile.VARIANT_HIGH)
+	for pos: Vector2i in _ramp_positions():
+		_draw_terrain_tile(pos, COLOR_RAMP, Color(0.0, 1.0, 0.8, 0.11), BattleIsoTile.VARIANT_RAMP)
 	for pos: Vector2i in _plasma_vent_positions():
 		_draw_hazard_tile(pos)
 	for pos: Vector2i in _layout_positions("blockers"):
@@ -1033,7 +1127,7 @@ func _spawn_position(key: String, index: int, fallback: Vector2i) -> Vector2i:
 	for pos: Vector2i in _valid_arena_tiles():
 		if not _layout_positions("blockers").has(pos):
 			return pos
-	return Vector2i(GRID_COLS / 2, GRID_ROWS / 2)
+	return Vector2i(floori(float(GRID_COLS) * 0.5), floori(float(GRID_ROWS) * 0.5))
 
 
 func _build_units() -> void:
@@ -1128,6 +1222,8 @@ func _sort_initiative() -> void:
 
 
 func _add_combat_state(unit: Dictionary) -> void:
+	if not unit.has("move_range"):
+		unit["move_range"] = _speed_move_range(int(unit.get("speed", 5)))
 	unit["move_range"] = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
 	unit["attack_range"] = int(unit.get("attack_range", DEFAULT_ATTACK_RANGE))
 	unit["has_moved"] = false
@@ -1187,6 +1283,38 @@ func _grid_neighbors(pos: Vector2i) -> Array:
 	]
 
 
+func _speed_move_range(speed: int) -> int:
+	if speed <= 3:
+		return 2
+	if speed <= 6:
+		return 3
+	if speed <= 9:
+		return 4
+	return 5
+
+
+func _movement_range_for_unit(unit: Dictionary) -> int:
+	if unit.has("move_range"):
+		return int(unit.get("move_range", DEFAULT_MOVE_RANGE))
+	return _speed_move_range(int(unit.get("speed", 5)))
+
+
+func _can_change_elevation(from_pos: Vector2i, to_pos: Vector2i) -> bool:
+	var from_elevation := _tile_elevation(from_pos)
+	var to_elevation := _tile_elevation(to_pos)
+	if from_elevation == to_elevation:
+		return true
+	if absi(to_elevation - from_elevation) > 1:
+		return false
+	return _is_ramp(from_pos) or _is_ramp(to_pos)
+
+
+func _is_step_walkable(from_pos: Vector2i, to_pos: Vector2i, ignored_unit = null) -> bool:
+	if not _is_walkable(to_pos, ignored_unit):
+		return false
+	return _can_change_elevation(from_pos, to_pos)
+
+
 func _is_tile_occupied(grid_pos: Vector2i, ignored_unit = null) -> bool:
 	for unit: Dictionary in _units:
 		if unit == ignored_unit:
@@ -1201,7 +1329,6 @@ func _is_tile_occupied(grid_pos: Vector2i, ignored_unit = null) -> bool:
 func _is_in_attack_range(attacker: Dictionary, target: Dictionary) -> bool:
 	if attacker.is_empty() or target.is_empty():
 		return false
-	var attacker_pos: Vector2i = attacker.get("grid_pos", Vector2i(-1, -1))
 	var target_pos: Vector2i = target.get("grid_pos", Vector2i(-1, -1))
 	return _is_in_attack_range_at_pos(attacker, target_pos)
 
@@ -1210,10 +1337,10 @@ func _is_in_attack_range_at_pos(attacker: Dictionary, target_pos: Vector2i) -> b
 	if attacker.is_empty() or not _is_valid_arena_tile(target_pos):
 		return false
 	var attacker_pos: Vector2i = attacker.get("grid_pos", Vector2i(-1, -1))
-	var range := int(attacker.get("attack_range", DEFAULT_ATTACK_RANGE))
+	var attack_range := int(attacker.get("attack_range", DEFAULT_ATTACK_RANGE))
 	if _tile_elevation(attacker_pos) > _tile_elevation(target_pos):
-		range += ELEVATION_RANGE_BONUS
-	return _grid_distance(attacker_pos, target_pos) <= range
+		attack_range += ELEVATION_RANGE_BONUS
+	return _grid_distance(attacker_pos, target_pos) <= attack_range
 
 
 func _elevation_attack_modifier(attacker: Dictionary, target: Dictionary) -> int:
@@ -1241,7 +1368,7 @@ func _get_reachable_tiles(unit: Dictionary) -> Array:
 		return result
 
 	var origin: Vector2i = unit["grid_pos"]
-	var move_range: int = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
+	var move_range: int = _movement_range_for_unit(unit)
 	var frontier: Array = [origin]
 	var distances: Dictionary = {origin: 0}
 	while not frontier.is_empty():
@@ -1253,7 +1380,7 @@ func _get_reachable_tiles(unit: Dictionary) -> Array:
 		if current_distance >= move_range:
 			continue
 		for next: Vector2i in _grid_neighbors(current):
-			if not _is_walkable(next, unit):
+			if not _is_step_walkable(current, next, unit):
 				continue
 			var next_distance := current_distance + _tile_movement_cost(next)
 			if next_distance > move_range:
@@ -1324,7 +1451,7 @@ func _find_path(unit: Dictionary, destination: Vector2i) -> Array:
 		if current == destination:
 			break
 		for next: Vector2i in _grid_neighbors(current):
-			if not _is_walkable(next, unit):
+			if not _is_step_walkable(current, next, unit):
 				continue
 			var next_distance := int(distances[current]) + _tile_movement_cost(next)
 			if distances.has(next) and int(distances[next]) <= next_distance:
@@ -1453,7 +1580,7 @@ func _show_move_tiles(unit: Dictionary) -> void:
 		return
 
 	for grid_pos: Vector2i in _get_reachable_tiles(unit):
-		var tile := _create_iso_tile_visual(grid_pos, COLOR_MOVE_HIT_TILE, COLOR_MOVE_HIT_BORDER, MOVE_TILE_SIZE, BattleIsoTile.VARIANT_MOVE)
+		var tile := _create_iso_tile_visual(grid_pos, COLOR_MOVE_HIT_TILE, COLOR_MOVE_HIT_BORDER, MOVE_INDICATOR_SIZE, BattleIsoTile.VARIANT_MOVE)
 		tile.mouse_filter = Control.MOUSE_FILTER_STOP
 		tile.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		tile.z_index = 4
@@ -1504,31 +1631,28 @@ func _clear_path_tiles() -> void:
 
 func _show_attack_range_tiles(unit: Dictionary) -> void:
 	_clear_attack_range_tiles()
-	var atk_range: int = int(unit.get("attack_range", DEFAULT_ATTACK_RANGE))
 	if _is_animating or not _is_player_turn() or not bool(unit.get("has_main_action", true)):
 		return
 
-	for y in range(GRID_ROWS):
-		for x in range(GRID_COLS):
-			var grid_pos := Vector2i(x, y)
-			if grid_pos == unit["grid_pos"] or not _is_in_attack_range_at_pos(unit, grid_pos):
-				continue
-			var range_tile := _create_iso_tile_visual(grid_pos, COLOR_ATTACK_RANGE_TILE, Color(1.0, 0.133, 0.267, 0.18), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_ATTACK_RANGE)
-			range_tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			range_tile.z_index = 2
-			_arena.add_child(range_tile)
-			_attack_range_tiles.append(range_tile)
+	var range_preview := AttackRangePreview.new()
+	range_preview.position = Vector2.ZERO
+	range_preview.size = _arena.size
+	range_preview.z_index = 3
+	var attack_range := int(unit.get("attack_range", DEFAULT_ATTACK_RANGE))
+	var radius := Vector2(MOVE_TILE_SIZE.x * maxf(1.0, float(attack_range)) * 0.92, MOVE_TILE_SIZE.y * maxf(1.0, float(attack_range)) * 0.92)
+	range_preview.setup(_movement_path_point(unit["grid_pos"]), radius, COLOR_ATTACK_RANGE_TILE)
+	_arena.add_child(range_preview)
+	_attack_range_tiles.append(range_preview)
 
 	for u: Dictionary in _units:
 		if u["team"] != "enemy" or int(u.get("hp_current", 0)) <= 0:
 			continue
 		var valid := _is_in_attack_range(unit, u)
-		var fill := COLOR_VALID_TARGET_TILE if valid else COLOR_INVALID_TARGET_TILE
-		var border := Color(1.0, 0.133, 0.267, 0.82) if valid else Color(0.72, 0.58, 0.62, 0.36)
-		var variant := BattleIsoTile.VARIANT_VALID_TARGET if valid else BattleIsoTile.VARIANT_INVALID_TARGET
-		var tile := _create_iso_tile_visual(u["grid_pos"], fill, border, MOVE_TILE_SIZE, variant)
+		if not valid:
+			continue
+		var tile := _create_iso_tile_visual(u["grid_pos"], COLOR_VALID_TARGET_TILE, Color(1.0, 0.133, 0.267, 0.92), MOVE_TILE_SIZE, BattleIsoTile.VARIANT_VALID_TARGET)
 		tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		tile.z_index = 4 if valid else 3
+		tile.z_index = 4
 		_arena.add_child(tile)
 		_attack_range_tiles.append(tile)
 
@@ -1573,7 +1697,7 @@ func _on_move_tile_gui_input(event: InputEvent, grid_pos: Vector2i) -> void:
 
 
 func _on_move_tile_mouse_entered(tile: BattleIsoTile, grid_pos: Vector2i) -> void:
-	tile.setup(Color(0.0, 1.0, 0.8, 0.12), Color(1.0, 1.0, 1.0, 0.42), 1.5, BattleIsoTile.VARIANT_MOVE)
+	tile.setup(Color(0.0, 1.0, 0.8, 0.14), Color(0.0, 1.0, 0.8, 0.46), 1.5, BattleIsoTile.VARIANT_MOVE)
 	_show_path_tiles(_get_active_unit(), grid_pos)
 
 
@@ -1611,6 +1735,7 @@ func _update_unit_info(unit: Dictionary) -> void:
 	var move_state := "READY" if move_ready else "USED"
 	var action_state := "READY" if action_ready else "USED"
 	var bonus_state := "READY" if bonus_ready else "USED"
+	var movement_range := _movement_range_for_unit(unit)
 	var skill_part := ""
 	var skill_display := "NONE"
 	var skill_key := String(unit.get("skill", ""))
@@ -1631,10 +1756,10 @@ func _update_unit_info(unit: Dictionary) -> void:
 	var skill_line := skill_part.strip_edges()
 	if skill_line == "":
 		skill_line = "SKILL: NONE"
-	_lbl_unit_info.text = "%s    HP %d/%d    STR %d  SPD %d  ARM %d\n[MOVE %s]  [ACTION %s]  [BONUS %s]    %s" % [
+	_lbl_unit_info.text = "%s    HP %d/%d    STR %d  SPD %d  MV %d  ARM %d\n[MOVE %s]  [ACTION %s]  [BONUS %s]    %s" % [
 		unit["name"],
 		unit["hp_current"], unit["hp_max"],
-		unit["strength"], unit["speed"], unit["armor"],
+		unit["strength"], unit["speed"], movement_range, unit["armor"],
 		move_state, action_state, bonus_state, skill_line
 	]
 	if _unit_name_label != null:
@@ -1642,7 +1767,7 @@ func _update_unit_info(unit: Dictionary) -> void:
 	if _unit_hp_label != null:
 		_unit_hp_label.text = "HP %d/%d" % [unit["hp_current"], unit["hp_max"]]
 	if _unit_stats_label != null:
-		_unit_stats_label.text = "STR %d   SPD %d   ARM %d" % [unit["strength"], unit["speed"], unit["armor"]]
+		_unit_stats_label.text = "STR %d   SPD %d   MV %d   ARM %d" % [unit["strength"], unit["speed"], movement_range, unit["armor"]]
 	if _unit_skill_label != null:
 		_unit_skill_label.text = "SKILL: %s" % skill_display
 	_set_state_chip("MOVE", move_ready)
@@ -2010,7 +2135,7 @@ func _on_mark() -> void:
 
 func _get_charge_target(unit: Dictionary) -> Dictionary:
 	var pos: Vector2i = unit["grid_pos"]
-	var move_range: int = int(unit.get("move_range", DEFAULT_MOVE_RANGE))
+	var move_range: int = _movement_range_for_unit(unit)
 	# Charge fires in the direction of the nearest enemy (by col delta sign).
 	var live_enemies: Array = _units.filter(func(u: Dictionary) -> bool:
 		return u["team"] == "enemy" and int(u.get("hp_current", 0)) > 0
@@ -2026,15 +2151,26 @@ func _get_charge_target(unit: Dictionary) -> Dictionary:
 	if dx == 0 and dy == 0:
 		return {}
 	var step := Vector2i(dx, 0) if dx != 0 else Vector2i(0, dy)
+	var previous := pos
 	for dist in range(1, move_range + 2):
 		var check := pos + step * dist
 		if not _is_valid_arena_tile(check):
 			break
 		if _is_blocker(check):
 			break
+		if not _can_change_elevation(previous, check):
+			break
+		var blocked_by_unit := false
 		for u: Dictionary in _units:
-			if u["team"] == "enemy" and int(u.get("hp_current", 0)) > 0 and u["grid_pos"] == check:
+			if int(u.get("hp_current", 0)) <= 0 or u["grid_pos"] != check:
+				continue
+			if u["team"] == "enemy":
 				return u
+			blocked_by_unit = true
+			break
+		if blocked_by_unit:
+			break
+		previous = check
 	return {}
 
 
@@ -2058,11 +2194,13 @@ func _on_charge() -> void:
 	var dy: int = sign(target["grid_pos"].y - pos.y)
 	var step := Vector2i(dx, 0) if dx != 0 else Vector2i(0, dy)
 	var land := pos
-	for dist in range(1, int(unit.get("move_range", DEFAULT_MOVE_RANGE)) + 1):
+	var previous := pos
+	for dist in range(1, _movement_range_for_unit(unit) + 1):
 		var next := pos + step * dist
-		if not _is_valid_arena_tile(next) or _is_blocker(next) or _is_tile_occupied(next, unit):
+		if not _is_step_walkable(previous, next, unit):
 			break
 		land = next
+		previous = next
 
 	unit["has_moved"] = true
 	unit["has_main_action"] = false
